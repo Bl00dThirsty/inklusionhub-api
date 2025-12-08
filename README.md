@@ -14,7 +14,7 @@ pip install django djangorestframework
 ```
 ### create an application
 ```bash
-python manage.py startapp api
+python manage.py startapp yourapp
 ```
 ### Add your app and DRF in settingd.py file
 ````python
