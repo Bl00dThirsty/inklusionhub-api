@@ -80,6 +80,18 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     date_joined = models.DateTimeField(auto_now_add=True, verbose_name="Date d'inscription")
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Dernière modification')
+     # Nouveau champ pour les rôles secondaires
+    secondary_roles = models.JSONField(default=list, blank=True, 
+                                       verbose_name='Rôles secondaires') 
+    # Pour suivre la progression de l'onboarding
+    onboarding_completed = models.BooleanField(default=False, 
+                                               verbose_name='Onboarding terminé')
+    onboarding_step = models.IntegerField(default=1, 
+                                          verbose_name='Étape onboarding')
+    # Préférences utilisateur
+    preferences = models.JSONField(default=dict, blank=True,
+                                   verbose_name='Préférences utilisateur')
+    
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['name', 'forename']

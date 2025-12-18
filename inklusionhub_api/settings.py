@@ -31,7 +31,10 @@ SECRET_KEY = 'django-insecure-0qm@vk5pbi1%4gmjbrg95ix=@1$593ye!#kpy+k^$e^c5n4tyi
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    "http://localhost:3000"
+    'localhost:3000',
+    'localhost',
+    'localhost:8000',
+    '127.0.0.1'
 ]
 
 
@@ -106,20 +109,42 @@ DATABASES = {
 
 # JWT Configuration
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=120),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': False,
+    
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,  # Important: utilisez SECRET_KEY
+    
     'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
 }
 
 # CORS
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Next.js dev
     "http://127.0.0.1:3000",
+    "http://127.0.0.1",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+
+# Autoriser les headers nécessaires
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 # Custom User Model
 AUTH_USER_MODEL = 'authentication.User'
