@@ -3,6 +3,33 @@ from rest_framework import serializers
 from .models import User
 from django.contrib.auth.password_validation import validate_password
 
+#####LOGIN#####
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        try:
+            user = User.objects.get(email__iexact=data["email"])
+        except User.DoesNotExist:
+            raise serializers.ValidationError({
+                "detail": "Email ou mot de passe incorrect."
+            })
+
+        if not user.check_password(data["password"]):
+            raise serializers.ValidationError({
+                "detail": "Email ou mot de passe incorrect."
+            })
+
+        if not user.is_active:
+            raise serializers.ValidationError({
+                "detail": "Votre compte est désactivé."
+            })
+
+        data["user"] = user
+        return data
+
+####REGISTER####
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
     
@@ -39,6 +66,7 @@ class UserSerializer(serializers.ModelSerializer):
                  'phone', 'adresse', 'Profession', 'date_joined')
         read_only_fields = ('id', 'date_joined')
 
+####ROLE-SELECTION####
 class RoleSelectionSerializer(serializers.ModelSerializer):
     secondary_roles = serializers.ListField(
         child=serializers.ChoiceField(choices=User.ROLE_CHOICES),
@@ -85,7 +113,8 @@ class RoleSelectionSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
     
-# authentication/serializers.py
+
+####BASIC-PROFILE####
 class BasicProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -111,7 +140,7 @@ class BasicProfileSerializer(serializers.ModelSerializer):
         
         return super().update(instance, validated_data)
 
-# authentication/serializers.py - à AJOUTER
+
 
 class EmployerProfileSerializer(serializers.ModelSerializer):
     class Meta:
