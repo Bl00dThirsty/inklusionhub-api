@@ -87,27 +87,52 @@ class RegisterView(generics.CreateAPIView):
                 'success': False,
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-class LoginView(APIView):
-    """
-    Login standard (géré par laura)
-    """
-    permission_classes = [permissions.AllowAny]
+# class LoginView(APIView):
+#     """
+#     Login standard (géré par laura)
+#     """
+#     permission_classes = [permissions.AllowAny]
     
+#     def post(self, request):
+#         email = request.data.get('email')
+#         password = request.data.get('password')
+        
+#         user = authenticate(email=email, password=password)
+        
+#         if user:
+#             refresh = RefreshToken.for_user(user)
+#             return Response({
+#                 'refresh': str(refresh),
+#                 'access': str(refresh.access_token),
+#                 'user': UserSerializer(user).data
+#             })
+#         return Response({'error': 'Identifiants invalides'}, 
+#                        status=status.HTTP_401_UNAUTHORIZED)
+    
+class LoginView(APIView):
     def post(self, request):
-        email = request.data.get('email')
-        password = request.data.get('password')
-        
-        user = authenticate(email=email, password=password)
-        
-        if user:
+        serializer = LoginSerializer(data=request.data)
+
+        if serializer.is_valid():
+            user = serializer.validated_data["user"]
+            
+            # Générer les tokens
             refresh = RefreshToken.for_user(user)
+            
             return Response({
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-                'user': UserSerializer(user).data
-            })
-        return Response({'error': 'Identifiants invalides'}, 
-                       status=status.HTTP_401_UNAUTHORIZED)
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "name": user.name,
+                    "forename": user.forename,
+                    "role": user.role,
+                    "avatar": user.avatar.url if user.avatar else None,
+                }
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class OnboardingRoleSelectionView(APIView):
     """
