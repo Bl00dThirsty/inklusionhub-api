@@ -11,6 +11,9 @@ from django.db import transaction
 from .serializers import *
 from .models import *
 from rest_framework import status
+import os
+from django.http import FileResponse, Http404
+from django.conf import settings
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 
 # class RegisterView(generics.CreateAPIView):
@@ -29,30 +32,6 @@ from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
-    
-    # def create(self, request, *args, **kwargs):
-    #     print("=== DEBUG REGISTER ===")
-    #     print(f"Données reçues: {request.data}")
-    #     print(f"Content-Type: {request.content_type}")
-        
-    #     serializer = self.get_serializer(data=request.data)
-    #     print(f"Serializer data: {serializer.initial_data}")
-        
-    #     # Vérifiez la validation
-    #     is_valid = serializer.is_valid()
-    #     print(f"Serializer is valid? {is_valid}")
-        
-    #     if not is_valid:
-    #         print(f"Erreurs de validation: {serializer.errors}")
-        
-    #     print("=====================")
-        
-    #     if is_valid:
-    #         self.perform_create(serializer)
-    #         headers = self.get_success_headers(serializer.data)
-    #         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-    #     else:
-    #         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         
@@ -189,7 +168,7 @@ class OnboardingRoleSelectionView(APIView):
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
 
-# authentication/views.py
+
 class OnboardingBasicProfileView(APIView):
     """
     Écran 3 - Profil de base (UNIQUEMENT les champs de base)
@@ -352,3 +331,105 @@ class GetCurrentUserView(APIView):
             'user': serializer.data
         }, status=status.HTTP_200_OK)
 
+
+def serve_avatar(request, filename):
+    # Chemin vers votre dossier avatars
+    avatar_path = os.path.join(settings.BASE_DIR, 'avatars', filename)
+    
+    if os.path.exists(avatar_path):
+        return FileResponse(open(avatar_path, 'rb'), content_type='image/jpeg')
+    raise Http404("Avatar not found")
+
+
+class UpdateProfileView(APIView):
+    """
+    Mise à jour du profil de base
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    
+    def put(self, request):
+        print(f"=== DEBUG Update Profile ===")
+        print(f"User: {request.user.email}")
+        print(f"Content-Type: {request.content_type}")
+        print(f"Données brutes: {request.data}")
+        
+        # Gérer différentes structures de données
+        user_data = request.data
+        
+        if isinstance(user_data, dict) and 'data' in user_data:
+            print("⚠️ Structure détectée: données dans 'data'")
+            user_data = user_data['data']
+        
+        print(f"Données à traiter: {user_data}")
+        
+        # Log spécifique pour les rôles
+        if 'role' in user_data:
+            print(f"   Rôle reçu: {user_data.get('role')}")
+        if 'secondary_roles' in user_data:
+            print(f"   Rôles secondaires reçus: {user_data.get('secondary_roles')}")
+        
+        print("==========================")
+        
+        user = request.user
+        
+        serializer = UpdateProfileSerializer(user, data=user_data, partial=True)
+        
+        if serializer.is_valid():
+            try:
+                # Sauvegarder
+                user = serializer.save()
+                
+                # Log de confirmation
+                print(f"✅ Profil mis à jour: {user.email}")
+                print(f"   Nom: {user.name}")
+                print(f"   Prénom: {user.forename}")
+                print(f"   Rôle: {user.role}")
+                print(f"   Rôles secondaires: {user.secondary_roles}")
+                
+                return Response({
+                    'success': True,
+                    'message': 'Profil mis à jour avec succès',
+                    'user': UserSerializer(user).data,
+                }, status=status.HTTP_200_OK)
+                
+            except Exception as e:
+                print(f"❌ Erreur lors de la sauvegarde: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                return Response({
+                    'success': False,
+                    'error': f'Erreur serveur: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            print(f"❌ Erreurs de validation: {serializer.errors}")
+            return Response({
+                'success': False,
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+
+class UpdateAvatarView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser]
+    
+    def put(self, request):
+        user = request.user
+        
+        if 'avatar' not in request.FILES:
+            return Response({
+                'success': False,
+                'error': 'Aucun fichier avatar fourni'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        avatar_file = request.FILES['avatar']
+        user.avatar = avatar_file
+        user.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Avatar mis à jour',
+            'avatar_url': user.avatar.url if user.avatar else None
+        }, status=status.HTTP_200_OK)

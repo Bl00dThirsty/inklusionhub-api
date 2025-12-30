@@ -17,6 +17,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from authentication.views import *
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -31,5 +33,9 @@ urlpatterns = [
     path('onboarding/preferences/', OnboardingPreferencesView.as_view(), name='onboarding-preferences'),
     path('onboarding/complete/', CompleteOnboardingView.as_view(), name='onboarding-complete'),
     path('user/me/', GetCurrentUserView.as_view(), name='get-current-user'),
-    
+    path('user/update/', UpdateProfileView.as_view(), name='update-profile'),
+    path('avatars/<str:filename>', serve_avatar, name='serve_avatar'),
+    path('user/update-avatar/', UpdateAvatarView.as_view(), name='update-avatar'),
 ]
+
+# Servir les fichiers média en développement
