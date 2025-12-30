@@ -340,7 +340,7 @@ def serve_avatar(request, filename):
         return FileResponse(open(avatar_path, 'rb'), content_type='image/jpeg')
     raise Http404("Avatar not found")
 
-
+#####UPDATE PROFILE VIEW #####
 class UpdateProfileView(APIView):
     """
     Mise à jour du profil de base
