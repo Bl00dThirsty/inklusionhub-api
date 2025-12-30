@@ -179,13 +179,23 @@ USE_I18N = True
 
 USE_TZ = True
 
+# # Configuration MEDIA (pour les fichiers uploadés par les utilisateurs)
+# MEDIA_URL = '/media/'  # URL pour accéder aux fichiers média
+# MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Dossier où sont stockés les fichiers
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+# STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # Pour collectstatic
+# STATICFILES_DIRS = [
+#     os.path.join(BASE_DIR, 'static'),  # Vos fichiers statiques custom
+# ]
 
+# Si vous voulez un dossier spécifique pour les avatars
+AVATAR_DIR = 'avatars/' 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+#[29/Dec/2025 14:07:32] "PUT /user/update/ HTTP/1.1" 200 920
