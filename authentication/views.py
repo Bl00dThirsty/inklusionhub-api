@@ -15,6 +15,7 @@ import os
 from django.http import FileResponse, Http404
 from django.conf import settings
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
+from rest_framework.permissions import IsAuthenticated
 
 # class RegisterView(generics.CreateAPIView):
 #     """
@@ -209,7 +210,14 @@ class OnboardingBasicProfileView(APIView):
         else:
             return 'preferences'
 
+class CurrentUserView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
+    
+    
 class OnboardingAdvancedProfileView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
@@ -332,104 +340,72 @@ class GetCurrentUserView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-def serve_avatar(request, filename):
-    # Chemin vers votre dossier avatars
-    avatar_path = os.path.join(settings.BASE_DIR, 'avatars', filename)
-    
-    if os.path.exists(avatar_path):
-        return FileResponse(open(avatar_path, 'rb'), content_type='image/jpeg')
-    raise Http404("Avatar not found")
 
 #####UPDATE PROFILE VIEW #####
 class UpdateProfileView(APIView):
     """
     Mise à jour du profil de base
     """
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser, JSONParser]
-    
-    def put(self, request):
-        print(f"=== DEBUG Update Profile ===")
-        print(f"User: {request.user.email}")
-        print(f"Content-Type: {request.content_type}")
-        print(f"Données brutes: {request.data}")
-        
-        # Gérer différentes structures de données
-        user_data = request.data
-        
-        if isinstance(user_data, dict) and 'data' in user_data:
-            print("⚠️ Structure détectée: données dans 'data'")
-            user_data = user_data['data']
-        
-        print(f"Données à traiter: {user_data}")
-        
-        # Log spécifique pour les rôles
-        if 'role' in user_data:
-            print(f"   Rôle reçu: {user_data.get('role')}")
-        if 'secondary_roles' in user_data:
-            print(f"   Rôles secondaires reçus: {user_data.get('secondary_roles')}")
-        
-        print("==========================")
-        
-        user = request.user
-        
-        serializer = UpdateProfileSerializer(user, data=user_data, partial=True)
-        
-        if serializer.is_valid():
-            try:
-                # Sauvegarder
-                user = serializer.save()
-                
-                # Log de confirmation
-                print(f"✅ Profil mis à jour: {user.email}")
-                print(f"   Nom: {user.name}")
-                print(f"   Prénom: {user.forename}")
-                print(f"   Rôle: {user.role}")
-                print(f"   Rôles secondaires: {user.secondary_roles}")
-                
-                return Response({
-                    'success': True,
-                    'message': 'Profil mis à jour avec succès',
-                    'user': UserSerializer(user).data,
-                }, status=status.HTTP_200_OK)
-                
-            except Exception as e:
-                print(f"❌ Erreur lors de la sauvegarde: {str(e)}")
-                import traceback
-                traceback.print_exc()
-                return Response({
-                    'success': False,
-                    'error': f'Erreur serveur: {str(e)}'
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        else:
-            print(f"❌ Erreurs de validation: {serializer.errors}")
-            return Response({
-                'success': False,
-                'errors': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
+class UpdateUserSecondaryRoleProfileView(APIView):
+    ##Mise à jour des informations d’un rôle secondaire (édition depuis la modal)
 
-class UpdateAvatarView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
-    parser_classes = [MultiPartParser]
-    
-    def put(self, request):
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def patch(self, request):
         user = request.user
-        
-        if 'avatar' not in request.FILES:
+        role = request.data.get("role")
+        data = request.data.get("data", {})
+
+        if not role:
+            return Response(
+                {"success": False, "message": "Rôle manquant"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 🔐 Vérifier que l'utilisateur possède bien ce rôle
+        user_roles = [user.role] + (user.secondary_roles or [])
+
+        if role not in user_roles:
+            return Response(
+                {"success": False, "message": "Rôle non autorisé"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 🎯 Sélection du serializer selon le rôle
+        if role == "apprenant":
+            serializer_class = LearnerProfileSerializer
+        elif role == "traducteur":
+            serializer_class = TranslatorProfileSerializer
+        elif role == "employeur":
+            serializer_class = EmployerProfileSerializer
+        elif role == "malentendant":
+            serializer_class = HearingImpairedProfileSerializer
+        elif role == "entendant":
+            serializer_class = BasicProfileSerializer
+        else:
+            return Response(
+                {"success": False, "message": "Rôle non supporté"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = serializer_class(
+            user,
+            data=data,
+            partial=True
+        )
+
+        if serializer.is_valid():
+            serializer.save()
             return Response({
-                'success': False,
-                'error': 'Aucun fichier avatar fourni'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        avatar_file = request.FILES['avatar']
-        user.avatar = avatar_file
-        user.save()
-        
+                "success": True,
+                "message": "Profil du rôle mis à jour",
+                "role": role,
+                "user": UserSerializer(user).data
+            }, status=status.HTTP_200_OK)
+
         return Response({
-            'success': True,
-            'message': 'Avatar mis à jour',
-            'avatar_url': user.avatar.url if user.avatar else None
-        }, status=status.HTTP_200_OK)
+            "success": False,
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
