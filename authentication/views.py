@@ -341,6 +341,11 @@ class GetCurrentUserView(APIView):
 
 
 
+#####UPDATE PROFILE VIEW #####
+class UpdateProfileView(APIView):
+    """
+    Mise à jour du profil de base
+    """
 class UpdateUserSecondaryRoleProfileView(APIView):
     ##Mise à jour des informations d’un rôle secondaire (édition depuis la modal)
 
