@@ -14,9 +14,7 @@ urlpatterns = [
     path('onboarding/preferences/', OnboardingPreferencesView.as_view(), name='onboarding-preferences'),
     path('onboarding/complete/', CompleteOnboardingView.as_view(), name='onboarding-complete'),
     path('user/me/', GetCurrentUserView.as_view(), name='get-current-user'),
-    path('user/update/', UpdateProfileView.as_view(), name='update-profile'),
-    path('avatars/<str:filename>', serve_avatar, name='serve_avatar'),
-     path('user/update-avatar/', UpdateAvatarView.as_view(), name='update-avatar'),
+    path('user/me/secondary-roles/', UpdateUserSecondaryRoleProfileView.as_view(), name='update-secondary-role'),
     # Récupérer l'état de l'onboarding
    # path('onboarding/status/', OnboardingStatusView.as_view(), name='onboarding-status'),
 ]

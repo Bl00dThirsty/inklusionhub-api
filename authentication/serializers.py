@@ -3,7 +3,9 @@ from rest_framework import serializers
 from .models import User
 from django.contrib.auth.password_validation import validate_password
 
-#####LOGIN#####
+# ============================================================
+# LOGIN
+# ============================================================
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
@@ -29,7 +31,9 @@ class LoginSerializer(serializers.Serializer):
         data["user"] = user
         return data
 
-####REGISTER####
+# ============================================================
+# REGISTER
+# ============================================================
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
     
@@ -60,13 +64,29 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 class UserSerializer(serializers.ModelSerializer):
+    secondary_roles = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ('id', 'email', 'name', 'forename', 'role', 'avatar', 
-                 'phone', 'adresse', 'Profession', 'date_joined')
+        fields = (
+            'id',
+            'name',
+            'forename',
+            'email',
+            'role',
+            'secondary_roles',
+            'phone',
+            'avatar',
+            'date_joined',
+        )
         read_only_fields = ('id', 'date_joined')
 
-####ROLE-SELECTION####
+    def get_secondary_roles(self, obj):
+        return obj.secondary_roles or []
+
+# ============================================================
+# ROLE SELECTION (ONBOARDING STEP 2)
+# ============================================================
 class RoleSelectionSerializer(serializers.ModelSerializer):
     secondary_roles = serializers.ListField(
         child=serializers.ChoiceField(choices=User.ROLE_CHOICES),
@@ -114,7 +134,9 @@ class RoleSelectionSerializer(serializers.ModelSerializer):
         return instance
     
 
-####BASIC-PROFILE####
+# ============================================================
+# BASIC PROFILE (ONBOARDING STEP 3)
+# ============================================================
 class BasicProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -141,7 +163,9 @@ class BasicProfileSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 
-
+# ============================================================
+# ROLE-SPECIFIC PROFILES (ONBOARDING STEP 4)
+# ============================================================
 class EmployerProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -218,7 +242,7 @@ class HearingImpairedProfileSerializer(serializers.ModelSerializer):
 class LearnerProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('preference_apprentissage', 'langue_parlee')
+        fields = ('preference_apprentissage', 'langue_parlee', 'level_en_LSF')
     
     def update(self, instance, validated_data):
         instance.onboarding_step = 4
@@ -230,14 +254,16 @@ class EntendantProfileSerializer(serializers.ModelSerializer):
     """Pour les utilisateurs avec rôle 'entendant'"""
     class Meta:
         model = User
-        fields = ('langue_parlee',)
+        fields = ('langue_parlee', 'profession')
     
     def update(self, instance, validated_data):
         instance.onboarding_step = 4
         instance.save()
         return super().update(instance, validated_data)
 
-
+# ============================================================
+# PREFERENCES (ONBOARDING FINAL)
+# ============================================================
 class PreferencesSerializer(serializers.ModelSerializer):
     # Champs supplémentaires pour le frontend
     email_notifications = serializers.BooleanField(write_only=True, required=False)
@@ -307,170 +333,91 @@ class PreferencesSerializer(serializers.ModelSerializer):
         return instance
     
 
-class UserSerializer(serializers.ModelSerializer):
-    """Serializer complet pour l'utilisateur (lecture seulement)"""
-    secondary_roles = serializers.SerializerMethodField()
-    onboarding_completed = serializers.BooleanField(read_only=False)
-    onboarding_step = serializers.IntegerField(read_only=True)
-    
-    class Meta:
-        model = User
-        fields = (
-            'id', 'email', 'name', 'forename', 'role', 'secondary_roles',
-            'phone', 'avatar', 'adresse', 'Profession',
-            'onboarding_completed', 'onboarding_step', 'date_joined', 'updated_at',
-            
-            # Champs pour malentendant
-            'niveau_perte_auditive', 'status_utilisez_vous_un_appareil_auditif', 'level_en_LSF',
-            
-            # Champs pour apprenant
-            'preference_apprentissage',
-            
-            # Champs pour traducteur
-            'certification', 'Annee_experience', 'niveau_expertise',
-            'Competence', 'Jour_disponible', 'Creneau_horaire_disponible', 'Tarif_horaire',
-            
-            # Champs pour employeur
-            'company_name', 'Domaine_activity', 'Type_company',
-            'Adresse_company', 'Taille_Company', 'Site_web',
-            
-            # Langues parlées
-            'langue_parlee'
-        )
-        read_only_fields = (
-    'id', 'date_joined',
-    # etc., tous les champs que l’utilisateur ne doit pas modifier directement
-) # Tous les champs en lecture seule pour cet endpoint
-    
-    def get_secondary_roles(self, obj):
-        """Récupérer les rôles secondaires depuis le champ JSON"""
-        if hasattr(obj, 'secondary_roles'):
-            return obj.secondary_roles
-        return []
-    
-    def to_representation(self, instance):
-        """Personnaliser la représentation JSON"""
-        representation = super().to_representation(instance)
-        
-        # Gérer l'URL de l'avatar
-        if instance.avatar:
-            representation['avatar'] = instance.avatar.url
-        else:
-            representation['avatar'] = None
-        
-        # Formater la date
-        representation['date_joined'] = instance.date_joined.isoformat()
-        
-        return representation
-
-
+# ============================================================
+# CURRENT USER (LIGHT)
+# ============================================================
 class CurrentUserSerializer(serializers.ModelSerializer):
-    """Serializer spécifique pour l'utilisateur connecté"""
     secondary_roles = serializers.SerializerMethodField()
+    avatar_url = serializers.SerializerMethodField()
     has_completed_onboarding = serializers.SerializerMethodField()
-    
+    date_joined_formatted = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = (
-            'id', 'email', 'name', 'forename', 'role', 'secondary_roles',
+            'id', 'email', 'name', 'forename', 'role',
+            'secondary_roles',
             'phone', 'avatar_url', 'adresse', 'Profession',
             'has_completed_onboarding', 'onboarding_step',
             'date_joined_formatted'
         )
-    
+
     def get_secondary_roles(self, obj):
-        if hasattr(obj, 'secondary_roles'):
-            return obj.secondary_roles
-        return []
-    
+        return obj.secondary_roles or []
+
     def get_has_completed_onboarding(self, obj):
-        if hasattr(obj, 'onboarding_completed'):
-            return obj.onboarding_completed
-        return False
-    
-    avatar_url = serializers.SerializerMethodField()
-    
+        return obj.onboarding_completed
+
     def get_avatar_url(self, obj):
         if obj.avatar:
             return obj.avatar.url
         return None
-    
-    date_joined_formatted = serializers.SerializerMethodField()
-    
+
     def get_date_joined_formatted(self, obj):
         return obj.date_joined.strftime("%d/%m/%Y %H:%M")
     
+    
+    # ============================================================
+# USER PROFILE BY ROLE (POUR TON DIALOG FRONTEND)
+# ============================================================
+class UserProfileByRoleSerializer(serializers.ModelSerializer):
+    secondary_roles = serializers.SerializerMethodField()
+    role_profiles = serializers.SerializerMethodField()
 
-####UPDATE-PROILE####
-class UpdateProfileSerializer(serializers.ModelSerializer):
-    # Ajoutez ces champs
-    role = serializers.ChoiceField(
-        choices=User.ROLE_CHOICES,
-        required=False,
-        allow_blank=False
-    )
-    
-    # Pour secondary_roles, utilisez ListField si c'est une liste de strings
-    secondary_roles = serializers.ListField(
-        child=serializers.ChoiceField(choices=User.ROLE_CHOICES),
-        required=False,
-        allow_empty=True
-    )
-    
     class Meta:
         model = User
-        fields = ('email', 'name', 'forename', 'phone', 'adresse', 'Profession', 'role', 'secondary_roles')
-        extra_kwargs = {
-            'email': {'required': True},
-            'name': {'required': True},
-            'forename': {'required': True},
-            'phone': {'required': True},
-            'adresse': {'required': True},
-            'Profession': {'required': True},
+        fields = (
+            "id",
+            "email",
+            "name",
+            "forename",
+            "role",
+            "secondary_roles",
+            "role_profiles",
+        )
+
+    def get_secondary_roles(self, obj):
+        return obj.secondary_roles or []
+
+    def get_role_profiles(self, obj):
+        roles = set([obj.role] + (obj.secondary_roles or []))
+        profiles = {}
+
+        if "apprenant" in roles:
+          profiles["apprenant"] = {
+            "preference_apprentissage": getattr(obj, "preference_apprentissage", []),
+            "langue_parlee": getattr(obj, "langue_parlee", [])
         }
-    
-    def validate_phone(self, value):
-        import re
-        if not re.match(r'^[\d\s\-\+\(\)]{8,20}$', value):
-            raise serializers.ValidationError(
-                "Format de téléphone invalide. Utilisez des chiffres, espaces, +, - ou ()."
-            )
-        return value
-    
-    def validate(self, data):
-        # Validation personnalisée
-        role = data.get('role')
-        secondary_roles = data.get('secondary_roles', [])
-        
-        # Vérifier que le rôle principal n'est pas dans les rôles secondaires
-        if role and role in secondary_roles:
-            raise serializers.ValidationError({
-                'secondary_roles': 'Le rôle principal ne peut pas être aussi un rôle secondaire.'
-            })
-        
-        # Vérifier qu'il n'y a pas de doublons dans les rôles secondaires
-        if secondary_roles and len(secondary_roles) != len(set(secondary_roles)):
-            raise serializers.ValidationError({
-                'secondary_roles': 'Les rôles secondaires ne doivent pas contenir de doublons.'
-            })
-        
-        return data
-    
-    def update(self, instance, validated_data):
-        # Extraire les rôles
-        role = validated_data.pop('role', None)
-        secondary_roles = validated_data.pop('secondary_roles', None)
-        
-        # Mettre à jour les autres champs
-        instance = super().update(instance, validated_data)
-        
-        # Mettre à jour le rôle principal si fourni
-        if role is not None:
-            instance.role = role
-        
-        # Mettre à jour les rôles secondaires si fournis
-        if secondary_roles is not None:
-            instance.secondary_roles = secondary_roles
-        
-        instance.save()
-        return instance
+
+        if "traducteur" in roles:
+           profiles["traducteur"] = {
+            "certification": getattr(obj, "certification", ""),
+            "Annee_experience": getattr(obj, "Annee_experience", 0),
+            "niveau_expertise": getattr(obj, "niveau_expertise", ""),
+            "Tarif_horaire": getattr(obj, "Tarif_horaire", 0)
+        }
+
+        if "employeur" in roles:
+           profiles["employeur"] = {
+            "company_name": getattr(obj, "company_name", ""),
+            "Domaine_activity": getattr(obj, "Domaine_activity", ""),
+            "Taille_Company": getattr(obj, "Taille_Company", "")
+        }
+
+        if "malentendant" in roles:
+          profiles["malentendant"] = {
+            "niveau_perte_auditive": getattr(obj, "niveau_perte_auditive", ""),
+            "level_en_LSF": getattr(obj, "level_en_LSF", "")
+        }
+
+        return profiles
