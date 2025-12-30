@@ -366,8 +366,83 @@ class CurrentUserSerializer(serializers.ModelSerializer):
     def get_date_joined_formatted(self, obj):
         return obj.date_joined.strftime("%d/%m/%Y %H:%M")
     
+#============================================================
+# UPDATE PROFILE
+#============================================================
+class UpdateProfileSerializer(serializers.ModelSerializer):
+    # Ajoutez ces champs
+    role = serializers.ChoiceField(
+        choices=User.ROLE_CHOICES,
+        required=False,
+        allow_blank=False
+    )
     
-    # ============================================================
+    # Pour secondary_roles, utilisez ListField si c'est une liste de strings
+    secondary_roles = serializers.ListField(
+        child=serializers.ChoiceField(choices=User.ROLE_CHOICES),
+        required=False,
+        allow_empty=True
+    )
+    
+    class Meta:
+        model = User
+        fields = ('email', 'name', 'forename', 'phone', 'adresse', 'Profession', 'role', 'secondary_roles')
+        extra_kwargs = {
+            'email': {'required': True},
+            'name': {'required': True},
+            'forename': {'required': True},
+            'phone': {'required': True},
+            'adresse': {'required': True},
+            'Profession': {'required': True},
+        }
+    
+    def validate_phone(self, value):
+        import re
+        if not re.match(r'^[\d\s\-\+\(\)]{8,20}$', value):
+            raise serializers.ValidationError(
+                "Format de téléphone invalide. Utilisez des chiffres, espaces, +, - ou ()."
+            )
+        return value
+    
+    def validate(self, data):
+        # Validation personnalisée
+        role = data.get('role')
+        secondary_roles = data.get('secondary_roles', [])
+        
+        # Vérifier que le rôle principal n'est pas dans les rôles secondaires
+        if role and role in secondary_roles:
+            raise serializers.ValidationError({
+                'secondary_roles': 'Le rôle principal ne peut pas être aussi un rôle secondaire.'
+            })
+        
+        # Vérifier qu'il n'y a pas de doublons dans les rôles secondaires
+        if secondary_roles and len(secondary_roles) != len(set(secondary_roles)):
+            raise serializers.ValidationError({
+                'secondary_roles': 'Les rôles secondaires ne doivent pas contenir de doublons.'
+            })
+        
+        return data
+    
+    def update(self, instance, validated_data):
+        # Extraire les rôles
+        role = validated_data.pop('role', None)
+        secondary_roles = validated_data.pop('secondary_roles', None)
+        
+        # Mettre à jour les autres champs
+        instance = super().update(instance, validated_data)
+        
+        # Mettre à jour le rôle principal si fourni
+        if role is not None:
+            instance.role = role
+        
+        # Mettre à jour les rôles secondaires si fournis
+        if secondary_roles is not None:
+            instance.secondary_roles = secondary_roles
+        
+        instance.save()
+        return instance
+        
+# ============================================================
 # USER PROFILE BY ROLE (POUR TON DIALOG FRONTEND)
 # ============================================================
 class UserProfileByRoleSerializer(serializers.ModelSerializer):
