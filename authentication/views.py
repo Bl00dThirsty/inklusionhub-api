@@ -392,7 +392,7 @@ class UpdateProfileView(APIView):
                 user = serializer.save()
                 
                 # Log de confirmation
-                print(f"✅ Profil mis à jour: {user.email}")
+                print(f"   Profil mis à jour: {user.email}")
                 print(f"   Nom: {user.name}")
                 print(f"   Prénom: {user.forename}")
                 print(f"   Rôle: {user.role}")
@@ -405,7 +405,7 @@ class UpdateProfileView(APIView):
                 }, status=status.HTTP_200_OK)
                 
             except Exception as e:
-                print(f"❌ Erreur lors de la sauvegarde: {str(e)}")
+                print(f" Erreur lors de la sauvegarde: {str(e)}")
                 import traceback
                 traceback.print_exc()
                 return Response({
@@ -413,7 +413,7 @@ class UpdateProfileView(APIView):
                     'error': f'Erreur serveur: {str(e)}'
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
-            print(f"❌ Erreurs de validation: {serializer.errors}")
+            print(f" Erreurs de validation: {serializer.errors}")
             return Response({
                 'success': False,
                 'errors': serializer.errors
@@ -445,65 +445,93 @@ class UpdateAvatarView(APIView):
         }, status=status.HTTP_200_OK)
     
 class UpdateUserSecondaryRoleProfileView(APIView):
-    ##Mise à jour des informations d’un rôle secondaire (édition depuis la modal)
-
+    """Mise à jour d'un rôle secondaire avec rôle dans l'URL"""
     authentication_classes = [JWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
-    def patch(self, request):
+    def patch(self, request, role):
         user = request.user
-        role = request.data.get("role")
-        data = request.data.get("data", {})
-
-        if not role:
+        
+        print(f"=== DEBUG UpdateSecondaryRoleProfileView ===")
+        print(f"Rôle depuis URL: {role}")
+        print(f"User: {user.email}")
+        print(f"Request data: {request.data}")
+        print("==============================================")
+        
+        # Vérifier que le rôle est valide
+        valid_roles = [choice[0] for choice in User.ROLE_CHOICES]
+        if role not in valid_roles:
             return Response(
-                {"success": False, "message": "Rôle manquant"},
+                {"success": False, "message": f"Rôle '{role}' non valide"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
-        # 🔐 Vérifier que l'utilisateur possède bien ce rôle
+        
+        # Vérifier que l'utilisateur possède bien ce rôle
         user_roles = [user.role] + (user.secondary_roles or [])
-
+        
         if role not in user_roles:
+            print(f"Rôle {role} non trouvé dans les rôles de l'utilisateur: {user_roles}")
+            # Ajouter le rôle aux rôles secondaires si ce n'est pas le rôle principal
+            if role != user.role:
+                if user.secondary_roles is None:
+                    user.secondary_roles = []
+                if role not in user.secondary_roles:
+                    user.secondary_roles.append(role)
+                    user.save()
+                    print(f"Ajout du rôle {role} aux rôles secondaires")
+        
+        # Sélection du serializer
+        serializer_map = {
+            "apprenant": LearnerProfileSerializer,
+            "traducteur": TranslatorProfileSerializer,
+            "employeur": EmployerProfileSerializer,
+            "malentendant": HearingImpairedProfileSerializer,
+            "entendant": EntendantProfileSerializer,
+        }
+        
+        if role not in serializer_map:
             return Response(
-                {"success": False, "message": "Rôle non autorisé"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # 🎯 Sélection du serializer selon le rôle
-        if role == "apprenant":
-            serializer_class = LearnerProfileSerializer
-        elif role == "traducteur":
-            serializer_class = TranslatorProfileSerializer
-        elif role == "employeur":
-            serializer_class = EmployerProfileSerializer
-        elif role == "malentendant":
-            serializer_class = HearingImpairedProfileSerializer
-        elif role == "entendant":
-            serializer_class = BasicProfileSerializer
-        else:
-            return Response(
-                {"success": False, "message": "Rôle non supporté"},
+                {"success": False, "message": f"Rôle '{role}' non supporté"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
+        
+        serializer_class = serializer_map[role]
+        
+        print(f"Using serializer: {serializer_class.__name__}")
+        print(f"Fields: {serializer_class.Meta.fields}")
+        
+        # Utiliser directement les données de la requête
         serializer = serializer_class(
             user,
-            data=data,
+            data=request.data,
             partial=True
         )
-
+        
         if serializer.is_valid():
-            serializer.save()
-            return Response({
-                "success": True,
-                "message": "Profil du rôle mis à jour",
-                "role": role,
-                "user": UserSerializer(user).data
-            }, status=status.HTTP_200_OK)
-
+            try:
+                serializer.save()
+                user.refresh_from_db()
+                
+                return Response({
+                    "success": True,
+                    "message": f"Profil {role} mis à jour",
+                    "role": role,
+                    "user": UserSerializer(user).data
+                }, status=status.HTTP_200_OK)
+                
+            except Exception as e:
+                print(f"Save error: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                return Response({
+                    "success": False,
+                    "message": f"Erreur serveur: {str(e)}"
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        print(f"Validation errors: {serializer.errors}")
         return Response({
             "success": False,
-            "errors": serializer.errors
+            "errors": serializer.errors,
+            "message": "Erreur de validation"
         }, status=status.HTTP_400_BAD_REQUEST)

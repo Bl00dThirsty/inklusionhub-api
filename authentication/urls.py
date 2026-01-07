@@ -17,7 +17,9 @@ urlpatterns = [
      path('user/update/', UpdateProfileView.as_view(), name='update-profile'),
     path('avatars/<str:filename>', serve_avatar, name='serve_avatar'),
     path('user/update-avatar/', UpdateAvatarView.as_view(), name='update-avatar'),
-    path('user/me/secondary-roles/', UpdateUserSecondaryRoleProfileView.as_view(), name='update-secondary-role'),
+   path('user/me/secondary-roles/<str:role>/', 
+         UpdateUserSecondaryRoleProfileView.as_view(),  # Utilisez le bon nom
+         name='update-secondary-role'),
     # Récupérer l'état de l'onboarding
    # path('onboarding/status/', OnboardingStatusView.as_view(), name='onboarding-status'),
 ]
