@@ -37,9 +37,7 @@ urlpatterns = [
     path('avatars/<str:filename>', serve_avatar, name='serve_avatar'),
     path('user/update-avatar/', UpdateAvatarView.as_view(), name='update-avatar'),
 
-    path('user/me/secondary-roles/', UpdateUserSecondaryRoleProfileView.as_view(), name='update-secondary-role'),
-    path('api/chat/', include('communication.urls')),  
-    
+    path('user/me/secondary-roles/<str:role>/',UpdateUserSecondaryRoleProfileView.as_view(),name='update-secondary-role'),
 
 ]
 

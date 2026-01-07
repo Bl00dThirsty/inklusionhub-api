@@ -64,26 +64,24 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 class UserSerializer(serializers.ModelSerializer):
-    secondary_roles = serializers.SerializerMethodField()
+    langue_parlee = serializers.ListField(
+        child=serializers.CharField(),
+        required=False
+    )
+    secondary_roles = serializers.ListField(
+        child=serializers.CharField(),
+        required=False
+    )
+    preference_apprentissage = serializers.ListField(
+        child=serializers.CharField(),
+        required=False
+    )
+    preferences = serializers.DictField(required=False)
 
     class Meta:
         model = User
-        fields = (
-            'id',
-            'name',
-            'forename',
-            'email',
-            'role',
-            'secondary_roles',
-            'phone',
-            'avatar',
-            'date_joined',
-        )
-        read_only_fields = ('id', 'date_joined')
-
-    def get_secondary_roles(self, obj):
-        return obj.secondary_roles or []
-
+        fields = "__all__"
+        read_only_fields = ("id", "date_joined", "updated_at")
 # ============================================================
 # ROLE SELECTION (ONBOARDING STEP 2)
 # ============================================================
@@ -178,15 +176,15 @@ class EmployerProfileSerializer(serializers.ModelSerializer):
             'Site_web'
         )
     
-    def validate(self, data):
+    #def validate(self, data):
         # Validation spécifique pour employeur
-        required_fields = ['company_name', 'Domaine_activity']
-        for field in required_fields:
-            if not data.get(field):
-                raise serializers.ValidationError({
-                    field: f"Ce champ est requis pour les employeurs."
-                })
-        return data
+       # required_fields = ['company_name', 'Domaine_activity']
+       # for field in required_fields:
+        #    if not data.get(field):
+          #      raise serializers.ValidationError({
+          #          field: f"Ce champ est requis pour les employeurs."
+         #       })
+        #return data
     
     def update(self, instance, validated_data):
         instance.onboarding_step = 4
@@ -195,14 +193,23 @@ class EmployerProfileSerializer(serializers.ModelSerializer):
 
 
 class TranslatorProfileSerializer(serializers.ModelSerializer):
+    Jour_disponible = serializers.ListField(
+        child=serializers.CharField(),
+        required=False
+    )
+    Creneau_horaire_disponible = serializers.ListField(
+        child=serializers.CharField(),
+        required=False
+    )
+
     class Meta:
         model = User
         fields = (
             'certification',
-            'Annee_experience', 
+            'Annee_experience',
             'niveau_expertise',
-            'Competence', 
-            'Jour_disponible', 
+            'Competence',
+            'Jour_disponible',
             'Creneau_horaire_disponible',
             'Tarif_horaire'
         )
@@ -224,12 +231,17 @@ class TranslatorProfileSerializer(serializers.ModelSerializer):
 
 
 class HearingImpairedProfileSerializer(serializers.ModelSerializer):
+    langue_parlee = serializers.ListField(
+        child=serializers.CharField(),
+        required=False
+    )
+
     class Meta:
         model = User
         fields = (
-            'niveau_perte_auditive', 
+            'niveau_perte_auditive',
             'status_utilisez_vous_un_appareil_auditif',
-            'level_en_LSF', 
+            'level_en_LSF',
             'langue_parlee'
         )
     
@@ -254,11 +266,11 @@ class EntendantProfileSerializer(serializers.ModelSerializer):
     """Pour les utilisateurs avec rôle 'entendant'"""
     class Meta:
         model = User
-        fields = ('langue_parlee', 'profession')
+        fields = ('langue_parlee', 'Profession', 'level_en_LSF')
     
     def update(self, instance, validated_data):
-        instance.onboarding_step = 4
-        instance.save()
+        #instance.onboarding_step = 4
+       # instance.save()
         return super().update(instance, validated_data)
 
 # ============================================================
@@ -468,31 +480,19 @@ class UserProfileByRoleSerializer(serializers.ModelSerializer):
         roles = set([obj.role] + (obj.secondary_roles or []))
         profiles = {}
 
-        if "apprenant" in roles:
-          profiles["apprenant"] = {
-            "preference_apprentissage": getattr(obj, "preference_apprentissage", []),
-            "langue_parlee": getattr(obj, "langue_parlee", [])
-        }
-
         if "traducteur" in roles:
-           profiles["traducteur"] = {
-            "certification": getattr(obj, "certification", ""),
-            "Annee_experience": getattr(obj, "Annee_experience", 0),
-            "niveau_expertise": getattr(obj, "niveau_expertise", ""),
-            "Tarif_horaire": getattr(obj, "Tarif_horaire", 0)
-        }
-
-        if "employeur" in roles:
-           profiles["employeur"] = {
-            "company_name": getattr(obj, "company_name", ""),
-            "Domaine_activity": getattr(obj, "Domaine_activity", ""),
-            "Taille_Company": getattr(obj, "Taille_Company", "")
-        }
+            profiles["traducteur"] = TranslatorProfileSerializer(obj).data
 
         if "malentendant" in roles:
-          profiles["malentendant"] = {
-            "niveau_perte_auditive": getattr(obj, "niveau_perte_auditive", ""),
-            "level_en_LSF": getattr(obj, "level_en_LSF", "")
-        }
+            profiles["malentendant"] = HearingImpairedProfileSerializer(obj).data
+
+        if "apprenant" in roles:
+            profiles["apprenant"] = LearnerProfileSerializer(obj).data
+
+        if "employeur" in roles:
+            profiles["employeur"] = EmployerProfileSerializer(obj).data
+
+        if "entendant" in roles:
+            profiles["entendant"] = EntendantProfileSerializer(obj).data
 
         return profiles

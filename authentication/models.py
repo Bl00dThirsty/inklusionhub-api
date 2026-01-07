@@ -57,9 +57,18 @@ class User(AbstractBaseUser, PermissionsMixin):
     certification = models.CharField(max_length=200, blank=True, null=True, verbose_name='Certification LSF')
     Annee_experience = models.IntegerField(default=0, verbose_name='Années d\'expérience')
     niveau_expertise = models.CharField(max_length=50, blank=True, null=True, verbose_name='Niveau d\'expertise')
-    Competence = models.TextField(blank=True, null=True, verbose_name='Compétences')
-    Jour_disponible = models.CharField(max_length=200, blank=True, null=True, verbose_name='Jours disponibles')
-    Creneau_horaire_disponible = models.CharField(max_length=200, blank=True, null=True, verbose_name='Créneaux horaires disponibles')
+    Competence = models.JSONField(default=list, blank=True, null=True, verbose_name='Compétences')
+    
+    # Changer de CharField à JSONField
+    Jour_disponible = models.JSONField(default=list, blank=True, null=True, verbose_name='Jours disponibles')
+    
+    # Changer de CharField à JSONField pour l'objet
+    Creneau_horaire_disponible = models.JSONField(
+        default=dict, 
+        blank=True, 
+        null=True, 
+        verbose_name='Créneaux horaires disponibles'
+    )
     Tarif_horaire = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Tarif horaire')
     
     # Champs pour Employeur
