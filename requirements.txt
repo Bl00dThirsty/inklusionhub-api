@@ -7,3 +7,7 @@ psycopg2-binary==2.9.11
 PyJWT==2.10.1
 python-dotenv==1.2.1
 sqlparse==0.5.4
+channels==4.1.0
+channels-redis==4.2.0
+daphne==4.1.0
+redis==5.0.0

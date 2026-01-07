@@ -15,7 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from authentication.views import *
 from django.conf import settings
 from django.conf.urls.static import static
@@ -37,10 +37,7 @@ urlpatterns = [
     path('avatars/<str:filename>', serve_avatar, name='serve_avatar'),
     path('user/update-avatar/', UpdateAvatarView.as_view(), name='update-avatar'),
 
-    path('user/me/secondary-roles/<str:role>/', 
-         UpdateUserSecondaryRoleProfileView.as_view(),  # Utilisez le bon nom
-         name='update-secondary-role'),
-    
+    path('user/me/secondary-roles/<str:role>/',UpdateUserSecondaryRoleProfileView.as_view(),name='update-secondary-role'),
 
 ]
 

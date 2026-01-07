@@ -41,6 +41,7 @@ ALLOWED_HOSTS = [
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -48,11 +49,13 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
      # Third party apps
+    'channels',
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',   
     # Local apps
     'authentication',
+    'communication',
 ]
 
 MIDDLEWARE = [
@@ -82,6 +85,21 @@ TEMPLATES = [
         },
     },
 ]
+
+# Définir ASGI_APPLICATION
+ASGI_APPLICATION = 'inklusionhub_api.asgi.application'
+
+# Configuration Channels
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],  # Redis local
+            "capacity": 1500,  # Messages en mémoire
+            "expiry": 10,  # Secondes
+        },
+    },
+}
 
 WSGI_APPLICATION = 'inklusionhub_api.wsgi.application'
 
@@ -199,3 +217,6 @@ AVATAR_DIR = 'avatars/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 #[29/Dec/2025 14:07:32] "PUT /user/update/ HTTP/1.1" 200 920
+
+# Pour les cookies/tokens WebSocket
+SECURE_WS = False  # Mettre à True en production avec HTTPS
