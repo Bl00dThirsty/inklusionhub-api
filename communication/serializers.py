@@ -8,6 +8,7 @@ class UserSerializer(serializers.ModelSerializer):
     """Sérializer léger pour les utilisateurs"""
     full_name = serializers.SerializerMethodField()
     role_display = serializers.SerializerMethodField()
+    online = serializers.SerializerMethodField()
     class Meta:
         model = User
         fields = [ 
@@ -18,22 +19,21 @@ class UserSerializer(serializers.ModelSerializer):
             'full_name',
             'role',
             'role_display',
-            'avatar'
+            'avatar',
+            'online'
         ]
     def get_full_name(self, obj):
         return obj.get_full_name()
     
     def get_role_display(self, obj):
         return obj.get_role_display_fr()
+    
+    def get_online(self, obj):
+        return getattr(obj, "status", None) and obj.status.online
 
 class MessageSerializer(serializers.ModelSerializer):
     sender = UserSerializer(read_only=True)
     receiver = UserSerializer(read_only=True)
-    sender_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(),
-        source='sender',
-        write_only=True
-    )
     receiver_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         source='receiver',
@@ -41,21 +41,38 @@ class MessageSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
+    file = serializers.SerializerMethodField()
+    image = serializers.SerializerMethodField()
+    file_name = serializers.CharField(read_only=True)
+    file_size = serializers.IntegerField(read_only=True)
     is_own = serializers.SerializerMethodField()
+
     class Meta:
         model = Message
         fields = [
             'id', 'conversation', 'sender', 'receiver',
-            'sender_id', 'receiver_id', 'content', 'image',
-            'timestamp', 'read', 'read_at'
+            'sender_id', 'receiver_id', 'content', 'image', 'file',
+            'file_name', 'file_size', 'timestamp', 'read', 'read_at', 'is_own'
         ]
-        read_only_fields = ['timestamp', 'read', 'read_at']
+        read_only_fields = ['timestamp', 'read', 'read_at', 'file_name', 'file_size']
+
     def get_is_own(self, obj):
-        """Vérifie si le message appartient à l'utilisateur courant"""
-        request = self.context.get('request')
-        if request and hasattr(request, 'user'):
-            return obj.sender == request.user
-        return False
+        user = self.context.get("user")
+        return obj.sender == user if user else False
+
+    # Retourne URL complète
+    def get_file(self, obj):
+        request = self.context.get("request")
+        if obj.file and request:
+            return request.build_absolute_uri(obj.file.url)
+        return None
+
+    def get_image(self, obj):
+        request = self.context.get("request")
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
+
 
 class ConversationSerializer(serializers.ModelSerializer):
     participants = UserSerializer(many=True, read_only=True)
@@ -74,10 +91,12 @@ class ConversationSerializer(serializers.ModelSerializer):
         if last_msg:
             return {
                 'content': last_msg.content,
-                'sender': last_msg.sender.username,
+                'sender': last_msg.sender.get_full_name(),
+                'sender_id': last_msg.sender.id,
                 'timestamp': last_msg.timestamp
             }
         return None
+
     
     def get_unread_count(self, obj):
         user = self.context.get('request').user
@@ -89,3 +108,18 @@ class UserStatusSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserStatus
         fields = ['user', 'online', 'last_seen']
+  # Serializer pour l'historique des fichiers dans les messages      
+class FileHistorySerializer(serializers.ModelSerializer):
+    sender_name = serializers.CharField(source="sender.name")
+    sender_id = serializers.CharField(source="sender.id")
+
+    class Meta:
+        model = Message
+        fields = [
+            "id",
+            "file",
+            "image",
+            "timestamp",
+            "sender_name",
+            "sender_id",
+        ]        
