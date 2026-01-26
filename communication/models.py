@@ -55,9 +55,20 @@ class Message(models.Model):
         null=True,
         max_length=500
     )
+    
+     # 🔥 DOCUMENTS / PDF / ZIP / DOCX
+    file = models.FileField(
+        upload_to="chat_files/",
+        null=True,
+        blank=True,
+        max_length=500
+    )
+    file_name = models.CharField(max_length=255, null=True, blank=True)
+    file_size = models.PositiveIntegerField(null=True, blank=True)  # ✅ taille en octets
     timestamp = models.DateTimeField(default=timezone.now)
     read = models.BooleanField(default=False)  # Statut "vu"
     read_at = models.DateTimeField(null=True, blank=True)
+    
     
     class Meta:
         ordering = ['timestamp']

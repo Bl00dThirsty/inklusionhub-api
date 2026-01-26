@@ -38,7 +38,15 @@ urlpatterns = [
     path('user/update-avatar/', UpdateAvatarView.as_view(), name='update-avatar'),
 
     path('user/me/secondary-roles/<str:role>/',UpdateUserSecondaryRoleProfileView.as_view(),name='update-secondary-role'),
-
+    
+    # Communication app URLs
+    path('communication/', include('communication.urls')),
+    
 ]
 
 # Servir les fichiers média en développement
+if settings.DEBUG:
+    urlpatterns += static(
+        settings.MEDIA_URL,
+        document_root=settings.MEDIA_ROOT
+    )
