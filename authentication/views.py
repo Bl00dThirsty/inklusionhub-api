@@ -104,15 +104,13 @@ class RegisterView(generics.CreateAPIView):
     
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
+    
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
 
         if serializer.is_valid():
             user = serializer.validated_data["user"]
-            
-            # Générer les tokens
             refresh = RefreshToken.for_user(user)
-            
             return Response({
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
@@ -127,6 +125,7 @@ class LoginView(APIView):
             }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class OnboardingRoleSelectionView(APIView):
     """

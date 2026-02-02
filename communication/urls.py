@@ -1,40 +1,57 @@
 
-# communication/urls.py
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from .views import (
-    ConversationViewSet, 
-    MessageViewSet, 
-    UserSearchViewSet,
-    ChatStatsViewSet
+from django.urls import path
+from communication.views import (
+    ConversationFileHistoryAPIView,
+    ConversationListView,
+    CreateOrGetConversation,
+    MessageListView,
+    MessageListCreateView,
+    MessageCreateView,
+    MarkMessageReadView,
+    UserListView,
+    UserSearchView,
+    UserStatusList,
 )
 
-router = DefaultRouter()
-router.register(r'conversations', ConversationViewSet, basename='conversation')
-router.register(r'messages', MessageViewSet, basename='message')
-router.register(r'user-search', UserSearchViewSet, basename='user-search')
-router.register(r'stats', ChatStatsViewSet, basename='chat-stats')
-
 urlpatterns = [
-    path('', include(router.urls)),
+    # Conversations
+    path("conversations/", ConversationListView.as_view(), name="conversation-list"),
+    path(
+        "conversations/create-or-get/",CreateOrGetConversation.as_view(),name="conversation-create-or-get"
+    ),
+
+    # Messages
+    path(
+        "conversations/<uuid:conversation_id>/messages/",MessageListView.as_view(),name="message-list"
+    ),
     
-    # Routes supplémentaires
-    path('conversations/<uuid:pk>/messages/', 
-         ConversationViewSet.as_view({'get': 'messages'}), 
-         name='conversation-messages'),
+     #  Liste des utilisateurs (excluant l’utilisateur connecté)
+    path("users/", UserListView.as_view(), name="chat-users"),
+    # Combinaison de la liste et de la création des messages
+    path(
+        "conversations/<uuid:conversation_id>/messages/list-create/",
+        MessageListCreateView.as_view(),
+        name="message-list-create"
+    ),
+    # Envoyer un message
+    path("messages/", MessageCreateView.as_view(), name="message-create"),
     
-    path('conversations/<uuid:pk>/mark-all-read/', 
-         ConversationViewSet.as_view({'post': 'mark_all_as_read'}), 
-         name='conversation-mark-all-read'),
+    # Marquer un message comme lu
+    path(
+        "messages/<uuid:message_id>/read/",
+        MarkMessageReadView.as_view(),
+        name="message-read"
+    ),
     
-    path('messages/<uuid:pk>/mark-read/', 
-         MessageViewSet.as_view({'post': 'mark_as_read'}), 
-         name='message-mark-read'),
-    path('messages/<uuid:pk>/mark-unread/', 
-         MessageViewSet.as_view({'post': 'mark_as_unread'}), 
-         name='message-mark-unread'),
-    path('messages/<uuid:pk>/delete/', 
-         MessageViewSet.as_view({'delete': 'delete_message'}), 
-         name='message-delete'),
-     
+    #  Statut utilisateurs (liste)
+   path("user-status/", UserStatusList.as_view(), name="user-status"),
+#  Fichiers d’une conversation
+   path(
+        "conversations/<uuid:conversation_id>/files/",
+        ConversationFileHistoryAPIView.as_view(),
+        name="conversation-files"
+    ),
+   # Recherche d’utilisateurs
+   path("users/search/", UserSearchView.as_view(), name="user-search"),
 ]
+
