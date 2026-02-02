@@ -1,3 +1,4 @@
+import datetime
 from django.shortcuts import render
 
 # api/views/auth.py
@@ -15,7 +16,12 @@ import os
 from django.http import FileResponse, Http404
 from django.conf import settings
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from events.publisher import (
+    publish_user_created, publish_user_updated, 
+    publish_user_deleted, publish_user_role_changed,
+    publish_user_secondary_roles_updated,  auth_publisher
+)
 
 # class RegisterView(generics.CreateAPIView):
 #     """
@@ -43,6 +49,13 @@ class RegisterView(generics.CreateAPIView):
         try:
             user = serializer.save()
             
+            # Publier l'événement USER_CREATED
+            try:
+                publish_user_created(user)
+                print(f"✅ Événement USER_CREATED publié pour {user.email}")
+            except Exception as e:
+                print(f"⚠️ Événement non publié: {e}")
+
             # Générer les tokens JWT
             refresh = RefreshToken.for_user(user)
             
@@ -90,6 +103,7 @@ class RegisterView(generics.CreateAPIView):
 #                        status=status.HTTP_401_UNAUTHORIZED)
     
 class LoginView(APIView):
+    permission_classes = [permissions.AllowAny]
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
 
@@ -383,13 +397,53 @@ class UpdateProfileView(APIView):
         print("==========================")
         
         user = request.user
+
+        # Sauvegarder l'état avant modification
+        old_role = user.role
+        old_secondary_roles = user.secondary_roles or []
         
         serializer = UpdateProfileSerializer(user, data=user_data, partial=True)
         
         if serializer.is_valid():
             try:
+                 # Récupérer les champs qui vont changer
+                changed_fields = []
+                for field, value in serializer.validated_data.items():
+                    if getattr(user, field) != value:
+                        changed_fields.append(field) 
+
                 # Sauvegarder
                 user = serializer.save()
+
+                # Publier les événements si nécessaire
+                try:
+                    if changed_fields:
+                        publish_user_updated(user, changed_fields)
+                        print(f"✅ Événement USER_UPDATED publié avec champs: {changed_fields}")
+                    
+                    # Événement spécifique pour changement de rôle principal
+                    if 'role' in changed_fields:
+                        publish_user_role_changed(user, old_role, user.role)
+                        print(f"✅ Événement USER_ROLE_CHANGED publié: {old_role} → {user.role}")
+                    
+                    # Événement pour rôles secondaires
+                    if 'secondary_roles' in changed_fields:
+                        new_secondary = user.secondary_roles or []
+                        added = [r for r in new_secondary if r not in old_secondary_roles]
+                        removed = [r for r in old_secondary_roles if r not in new_secondary]
+                        
+                        if added or removed:
+                            publish_user_secondary_roles_updated(user, added, removed)
+                            print(f"✅ Événement SECONDARY_ROLES_UPDATED publié")
+                
+                except Exception as e:
+                    print(f"⚠️ Événements non publiés: {e}")
+                
+                return Response({
+                    'success': True,
+                    'message': 'Profil mis à jour avec succès',
+                    'user': UserSerializer(user).data,
+                }, status=status.HTTP_200_OK)
                 
                 # Log de confirmation
                 print(f"   Profil mis à jour: {user.email}")
@@ -535,3 +589,65 @@ class UpdateUserSecondaryRoleProfileView(APIView):
             "errors": serializer.errors,
             "message": "Erreur de validation"
         }, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class DeleteUserView(APIView):
+    """Supprimer un utilisateur (admin seulement)"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def delete(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+            
+            # Publier l'événement avant suppression
+            try:
+                publish_user_deleted(user_id)
+                print(f"✅ Événement USER_DELETED publié pour {user.email}")
+            except Exception as e:
+                print(f"⚠️ Événement non publié: {e}")
+            
+            # Supprimer l'utilisateur
+            user.delete()
+            
+            return Response({
+                'success': True,
+                'message': f'Utilisateur {user.email} supprimé avec succès'
+            }, status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Utilisateur non trouvé'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ListUsersView(generics.ListAPIView):
+    """Lister tous les utilisateurs (admin seulement)"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = UserSerializer
+    queryset = User.objects.all()
+    # filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = ['role', 'is_active']
+    search_fields = ['email', 'name', 'forename']
+    
+    def list(self, request, *args, **kwargs):
+        # Publier un événement d'audit (optionnel)
+        try:
+            auth_publisher.publish_user_event(
+                'USER_LIST_REQUESTED',
+                {
+                    'requested_by': str(request.user.id),
+                    'timestamp': datetime.utcnow().isoformat()
+                }
+            )
+        except Exception as e:
+            print(f"⚠️ Événement audit non publié: {e}")
+        
+        return super().list(request, *args, **kwargs)

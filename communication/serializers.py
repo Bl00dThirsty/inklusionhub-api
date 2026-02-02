@@ -15,16 +15,13 @@ class UserSerializer(serializers.ModelSerializer):
             'email', 
             'name', 
             'forename',
-            'full_name',
             'role',
-            'role_display',
             'avatar'
         ]
     def get_full_name(self, obj):
         return obj.get_full_name()
     
-    def get_role_display(self, obj):
-        return obj.get_role_display_fr()
+    
 
 class MessageSerializer(serializers.ModelSerializer):
     sender = UserSerializer(read_only=True)
@@ -47,7 +44,7 @@ class MessageSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'conversation', 'sender', 'receiver',
             'sender_id', 'receiver_id', 'content', 'image',
-            'timestamp', 'read', 'read_at'
+            'timestamp', 'read', 'read_at', 'is_own'
         ]
         read_only_fields = ['timestamp', 'read', 'read_at']
     def get_is_own(self, obj):
@@ -61,27 +58,32 @@ class ConversationSerializer(serializers.ModelSerializer):
     participants = UserSerializer(many=True, read_only=True)
     last_message = serializers.SerializerMethodField()
     unread_count = serializers.SerializerMethodField()
+    other_participant = serializers.SerializerMethodField()
     
     class Meta:
         model = Conversation
         fields = [
-            'id', 'participants', 'is_group', 'name',
-            'created_at', 'updated_at', 'last_message', 'unread_count'
+            'id', 
+            'participants', 
+            'is_group', 
+            'name',
+            'created_at', 
+            'updated_at', 
+            'last_message', 
+            'unread_count',
+            'other_participant'
         ]
     
     def get_last_message(self, obj):
         last_msg = obj.messages.last()
         if last_msg:
+            # CORRECTION : Utilise get_full_name() au lieu de username
             return {
                 'content': last_msg.content,
-                'sender': last_msg.sender.username,
+                'sender': last_msg.sender.get_full_name(),  # ⬅️ CORRIGE ICI
                 'timestamp': last_msg.timestamp
             }
         return None
-    
-    def get_unread_count(self, obj):
-        user = self.context.get('request').user
-        return obj.messages.filter(read=False).exclude(sender=user).count()
 
 class UserStatusSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
