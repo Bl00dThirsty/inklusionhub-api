@@ -1,9 +1,10 @@
+from ast import Call
 from rest_framework import serializers
-from .models import Conversation, Message, UserStatus
+from .models import Conversation, Message, UserStatus, VoiceMessage
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
-
+# Serializer léger pour les utilisateurs
 class UserSerializer(serializers.ModelSerializer):
     """Sérializer léger pour les utilisateurs"""
     full_name = serializers.SerializerMethodField()
@@ -30,10 +31,28 @@ class UserSerializer(serializers.ModelSerializer):
     
     def get_online(self, obj):
         return getattr(obj, "status", None) and obj.status.online
+    
+# =========================
+# VOICE MESSAGE
+# =========================
+class VoiceMessageSerializer(serializers.ModelSerializer):
+    audio = serializers.SerializerMethodField()
 
+    class Meta:
+        model = VoiceMessage
+        fields = ["id", "audio", "duration"]
+
+    def get_audio(self, obj):
+        request = self.context.get("request")
+        if obj.audio and request:
+            return request.build_absolute_uri(obj.audio.url)
+        return None
+# =========================    
+# Serializer pour les messages
 class MessageSerializer(serializers.ModelSerializer):
     sender = UserSerializer(read_only=True)
     receiver = UserSerializer(read_only=True)
+    voice = VoiceMessageSerializer(read_only=True)
     receiver_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         source='receiver',
@@ -46,15 +65,14 @@ class MessageSerializer(serializers.ModelSerializer):
     file_name = serializers.CharField(read_only=True)
     file_size = serializers.IntegerField(read_only=True)
     is_own = serializers.SerializerMethodField()
-
     class Meta:
         model = Message
         fields = [
             'id', 'conversation', 'sender', 'receiver',
             'sender_id', 'receiver_id', 'content', 'image', 'file',
-            'file_name', 'file_size', 'timestamp', 'read', 'read_at', 'is_own'
+            'file_name', 'file_size', 'timestamp', 'is_read', 'read_at', "voice", 'is_own','is_delivered'
         ]
-        read_only_fields = ['timestamp', 'read', 'read_at', 'file_name', 'file_size']
+        read_only_fields = ['timestamp', 'is_read', 'read_at', 'file_name', 'file_size','is_delivered']
 
     def get_is_own(self, obj):
         user = self.context.get("user")
@@ -73,7 +91,7 @@ class MessageSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.image.url)
         return None
 
-
+# Serializer pour les conversations
 class ConversationSerializer(serializers.ModelSerializer):
     participants = UserSerializer(many=True, read_only=True)
     last_message = serializers.SerializerMethodField()
@@ -100,8 +118,30 @@ class ConversationSerializer(serializers.ModelSerializer):
     
     def get_unread_count(self, obj):
         user = self.context.get('request').user
-        return obj.messages.filter(read=False).exclude(sender=user).count()
+        return obj.messages.filter(is_read=False).exclude(sender=user).count()
 
+    
+# =========================
+# CALL (AUDIO / VIDEO)
+# =========================
+class CallSerializer(serializers.ModelSerializer):
+    caller = UserSerializer(read_only=True)
+    receiver = UserSerializer(read_only=True)
+    duration = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Call
+        fields = [
+            "id", "conversation",
+            "caller", "receiver",
+            "call_type",
+            "started_at", "ended_at",
+            "is_missed", "duration"
+        ]
+
+    def get_duration(self, obj):
+        return obj.duration()    
+# Serializer pour le statut utilisateur
 class UserStatusSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     

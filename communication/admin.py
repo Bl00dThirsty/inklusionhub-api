@@ -10,9 +10,9 @@ class ConversationAdmin(admin.ModelAdmin):
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
     list_display = ('id', 'sender', 'receiver', 'conversation', 
-                    'content_preview', 'timestamp', 'read')
-    list_filter = ('read', 'timestamp', 'conversation')
-    search_fields = ('content', 'sender__username', 'receiver__username')
+                    'content_preview', 'timestamp', 'is_read')
+    list_filter = ('is_read', 'timestamp', 'conversation')
+    search_fields = ('content', 'sender__email', 'receiver__email')
     
     def content_preview(self, obj):
         return obj.content[:50] + '...' if len(obj.content) > 50 else obj.content
