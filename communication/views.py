@@ -7,11 +7,10 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from rest_framework.pagination import PageNumberPagination
+from channels.layers import get_channel_layer
 
-
-
-from .models import Conversation, Message, UserStatus
-from .serializers import ConversationSerializer, FileHistorySerializer, MessageSerializer, UserSerializer, UserStatusSerializer
+from .models import Call, Conversation, Message, UserStatus
+from .serializers import CallSerializer, ConversationSerializer, FileHistorySerializer, MessageSerializer, UserSerializer, UserStatusSerializer
 
 User = get_user_model()
 
@@ -58,24 +57,6 @@ class MessageListView(generics.ListAPIView):
 
     def get_serializer_context(self):
         return {"request": self.request}
-
-
-#  Envoyer un message
-class MessageCreateView(generics.CreateAPIView):
-    serializer_class = MessageSerializer
-    permission_classes = [IsAuthenticated]
-
-    def perform_create(self, serializer):
-        conversation = serializer.validated_data["conversation"]
-
-        if self.request.user not in conversation.participants.all():
-            raise PermissionDenied("Accès interdit à cette conversation")
-
-        serializer.save(sender=self.request.user)
-
-    def get_serializer_context(self):
-        return {"request": self.request}
-
 
 #  Marquer un message comme lu
 class MarkMessageReadView(APIView):
@@ -146,18 +127,90 @@ class MessageListCreateView(generics.ListCreateAPIView):
         file_obj = self.request.FILES.get("file")
         image_obj = self.request.FILES.get("image")
 
-        serializer.save(
+        # Création du message
+        message = serializer.save(
             sender=self.request.user,
             conversation=conversation,
             image=image_obj,
             file=file_obj,
             file_name=file_obj.name if file_obj else None,
-            file_size=file_obj.size if file_obj else None
+            file_size=file_obj.size if file_obj else None,
+            is_read=False,      
+            is_delivered=False
         )
 
-        print("FILES:", self.request.FILES)
-        print("DATA:", self.request.data)
+        # Broadcast WebSocket immédiatement après le save
+        from asgiref.sync import async_to_sync
+        from channels.layers import get_channel_layer
 
+        channel_layer = get_channel_layer()
+        participants = message.conversation.participants.exclude(id=message.sender.id)
+
+        message_data = {
+            "id": str(message.id),
+            "content": message.content or "",
+            "sender": {
+                "id": str(message.sender.id),
+                "name": message.sender.get_full_name() or message.sender.email,
+                "avatar": message.sender.avatar.url if hasattr(message.sender, "avatar") and message.sender.avatar else None,
+            },
+            "timestamp": message.timestamp.isoformat(),
+            "read": message.is_read,
+            "conversation_id": str(message.conversation.id),
+            "image": message.image.url if message.image else None,
+            "file": message.file.url if message.file else None,
+            "fileName": message.file_name,
+            "fileSize": message.file_size,
+        }
+
+        for participant in participants:
+             # 1. Envoi du message (pour le chat ouvert)
+            async_to_sync(channel_layer.group_send)(
+                f"user_{participant.id}",
+                {
+                    "type": "ws_send", # Appelle la méthode async def chat_message ci-dessous
+                    "payload": {
+                        "type": "chat_message",
+                        "data": message_data # On met les données ici
+                    }
+                }
+            )
+            
+            # 2. Envoi de la NOTIFICATION (pour le store de notifications)
+            async_to_sync(channel_layer.group_send)(
+                    f"user_{participant.id}",
+                    {
+                        "type": "ws_send",
+                        "payload": {
+                            "type": "notification",
+                            "data": {
+                                "id": str(message.id),
+                                "type": "new_message",
+                                "conversation_id": str(message.conversation.id),
+                                "sender": {
+                                    "id": str(message.sender.id),
+                                    "name": message.sender.get_full_name() or message.sender.email
+                                },
+                                "preview": (message.content[:50] + "...") if message.content else "Nouveau fichier reçu",
+                                "timestamp": message.timestamp.isoformat()
+                            }
+                        }
+                    }
+            ) 
+
+
+# =========================
+# CALL HISTORY
+# =========================
+class CallHistoryView(generics.ListAPIView):
+    serializer_class = CallSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return Call.objects.filter(
+            caller=user
+        ) | Call.objects.filter(receiver=user)
 
         
 #  Liste des statuts des utilisateurs (online/offline)
@@ -200,4 +253,4 @@ class UserSearchView(generics.ListAPIView):
         return User.objects.filter(
     name__icontains=q
 ).exclude(id=self.request.user.id)
-        
+

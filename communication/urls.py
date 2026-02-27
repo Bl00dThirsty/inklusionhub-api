@@ -6,7 +6,7 @@ from communication.views import (
     CreateOrGetConversation,
     MessageListView,
     MessageListCreateView,
-    MessageCreateView,
+    #MessageCreateView,
     MarkMessageReadView,
     UserListView,
     UserSearchView,
@@ -34,7 +34,7 @@ urlpatterns = [
         name="message-list-create"
     ),
     # Envoyer un message
-    path("messages/", MessageCreateView.as_view(), name="message-create"),
+    #path("messages/", MessageCreateView.as_view(), name="message-create"),
     
     # Marquer un message comme lu
     path(
