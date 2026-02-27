@@ -20,7 +20,8 @@ class UserSerializer(serializers.ModelSerializer):
             'role',
             'role_display',
             'avatar',
-            'online'
+            'online',
+            'full_name'
         ]
     def get_full_name(self, obj):
         return obj.get_full_name()
@@ -97,26 +98,17 @@ class ConversationSerializer(serializers.ModelSerializer):
     participants = UserSerializer(many=True, read_only=True)
     last_message = serializers.SerializerMethodField()
     unread_count = serializers.SerializerMethodField()
-    other_participant = serializers.SerializerMethodField()
     
     class Meta:
         model = Conversation
         fields = [
-            'id', 
-            'participants', 
-            'is_group', 
-            'name',
-            'created_at', 
-            'updated_at', 
-            'last_message', 
-            'unread_count',
-            'other_participant'
+            'id', 'participants', 'is_group', 'name',
+            'created_at', 'updated_at', 'last_message', 'unread_count'
         ]
     
     def get_last_message(self, obj):
         last_msg = obj.messages.last()
         if last_msg:
-            # CORRECTION : Utilise get_full_name() au lieu de username
             return {
                 'content': last_msg.content,
                 'sender': last_msg.sender.get_full_name(),
