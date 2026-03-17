@@ -82,6 +82,8 @@ class Message(models.Model):
     read_at = models.DateTimeField(null=True, blank=True)
     is_delivered = models.BooleanField(default=False)
     is_read = models.BooleanField(default=False)  
+    is_deleted = models.BooleanField(default=False)
+    deleted_for_everyone = models.BooleanField(default=False)
     
     class Meta:
         ordering = ['timestamp']

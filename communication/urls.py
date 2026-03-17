@@ -7,6 +7,7 @@ from communication.views import (
     MessageListCreateView,
     #MessageCreateView,
     MarkMessageReadView,
+    MessageViewSet,
     UserListView,
     UserSearchView,
     UserStatusList,
@@ -52,4 +53,16 @@ urlpatterns = [
     ),
    # Recherche d’utilisateurs
    path("users/search/", UserSearchView.as_view(), name="user-search"),
+   
+   # MessageViewSet (suppression WhatsApp)
+    path(
+        "messages/<uuid:pk>/",
+        MessageViewSet.as_view({
+            "get": "retrieve",
+            "put": "update",
+            "patch": "partial_update",
+            "delete": "destroy",
+        }),
+        name="message-detail"
+    ),
 ]

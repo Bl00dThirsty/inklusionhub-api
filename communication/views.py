@@ -3,6 +3,8 @@ from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.decorators import action
+from rest_framework import viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
@@ -101,6 +103,33 @@ class CreateOrGetConversation(APIView):
 
         serializer = ConversationSerializer(conversation, context={"request": request})
         return Response(serializer.data, status=200)
+    
+class MessageViewSet(viewsets.ModelViewSet):
+    queryset = Message.objects.all()
+    serializer_class = MessageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def destroy(self, request, *args, **kwargs):
+        msg = self.get_object()
+
+        # Vérifier que l'utilisateur est bien l'expéditeur
+        if msg.sender != request.user:
+            raise PermissionDenied("Vous ne pouvez supprimer que vos propres messages.")
+
+        for_everyone = request.data.get("for_everyone", False)
+
+        if for_everyone:
+            # Suppression pour tout le monde (comme WhatsApp)
+            msg.deleted_for_everyone = True
+            msg.content = "Ce message a été supprimé"
+            msg.image = None
+            msg.file = None
+        else:
+            # Suppression uniquement pour soi
+            msg.is_deleted = True
+
+        msg.save()
+        return Response({"success": True}) 
 
 #  Combinaison liste / création messages d’une conversation
 class MessageListCreateView(generics.ListCreateAPIView):

@@ -3,6 +3,7 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer,AsyncWebsocket
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from asgiref.sync import sync_to_async
 
 from .models import Conversation, Message, UserStatus, VoiceMessage
 
@@ -89,10 +90,13 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
         if not conversation_id or not content:
             return
         
+        if not await self.is_user_in_conversation(conversation_id):
+          return
         conversation = await self.get_conversation(conversation_id)
 
-        if self.user not in conversation.participants.all():
-            return  
+        is_participant = await self.is_user_in_conversation(conversation)
+        if not is_participant:
+            return
 
         new_msg = await self.create_message(conversation_id, content)
 
@@ -149,6 +153,25 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
                         }
                     }
                 )
+                
+        #  STATUT LIVRÉ : si le destinataire est en ligne, marquer livré immédiatement
+            is_online = await self.is_user_online(participant.id)
+            if is_online:
+                await self.mark_as_delivered(new_msg.id)
+                await self.channel_layer.group_send(
+                    f"user_{self.user.id}",
+                        {
+                        "type": "ws_send",
+                            "payload": {
+                            "type": "delivered_receipt",
+                            "data": {
+                            "message_id": str(new_msg.id),
+                            "conversation_id": str(conversation_id),
+                                    }
+                            }
+                        }
+                )
+         
         # Push Celery
         try:
             from .tasks import async_send_push_notifications
@@ -311,6 +334,80 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
 
     # ─── DATABASE METHODS ──────────────────────────────────
     @database_sync_to_async
+    def is_participant(self, conversation_id):
+        try:
+            conv = Conversation.objects.get(id=conversation_id)
+            return conv.participants.filter(id=self.user.id).exists()
+        except Conversation.DoesNotExist:
+            return False
+        
+    @database_sync_to_async
+    def is_user_in_conversation(self, conversation_id):
+        return Conversation.objects.filter(
+            id=conversation_id,
+            participants__id=self.user.id
+        ).exists()
+ 
+    @database_sync_to_async
+    def is_user_online(self, user_id):
+        """ Vérifie si un utilisateur est connecté pour le statut livré"""
+        try:
+            status = UserStatus.objects.get(user_id=user_id)
+            return status.online and status.connections > 0
+        except UserStatus.DoesNotExist:
+            return False
+ 
+    @database_sync_to_async
+    def mark_as_delivered(self, message_id):
+        """ Marque le message comme livré (double coche)"""
+        try:
+            Message.objects.filter(id=message_id).update(is_delivered=True)
+            return True
+        except Exception:
+            return False
+ 
+    @database_sync_to_async
+    def get_undelivered_messages(self):
+        """
+         RECONNEXION SYNC : récupère les messages reçus mais non livrés
+        pendant que l'utilisateur était déconnecté
+        """
+        try:
+            messages = Message.objects.filter(
+                receiver=self.user,
+                is_delivered=False,
+            ).select_related('sender', 'conversation').order_by('timestamp')[:50]
+ 
+            result = []
+            for msg in messages:
+                result.append({
+                    "id": str(msg.id),
+                    "conversation_id": str(msg.conversation.id),
+                    "content": msg.content or "",
+                    "sender": {
+                        "id": str(msg.sender.id),
+                        "name": msg.sender.get_full_name() or msg.sender.username,
+                    },
+                    "timestamp": msg.timestamp.isoformat(),
+                    "is_read": msg.is_read,
+                    "is_delivered": False,
+                    "image": msg.image.url if msg.image else None,
+                    "file": msg.file.url if msg.file else None,
+                    "fileName": msg.file_name,
+                    "fileSize": msg.file_size,
+                })
+ 
+            # Marquer comme livrés maintenant qu'on les envoie
+            Message.objects.filter(
+                receiver=self.user,
+                is_delivered=False
+            ).update(is_delivered=True)
+ 
+            return result
+        except Exception as e:
+            print(f"[WS] get_undelivered_messages error: {e}")
+            return []
+    @database_sync_to_async
     def create_message(self, conversation_id, content):
         conversation = Conversation.objects.get(id=conversation_id)
         receiver = conversation.participants.exclude(id=self.user.id).first()
@@ -355,6 +452,9 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
     def get_conversation_id(self, message):
         return message.conversation.id
     
+    @database_sync_to_async
+    def get_conversation(self, conversation_id):
+        return Conversation.objects.get(id=conversation_id)
 
     @database_sync_to_async
     def increment_presence(self):
