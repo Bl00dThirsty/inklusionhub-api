@@ -1,13 +1,20 @@
 
+from asgiref.sync import async_to_sync
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.decorators import action
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from rest_framework import viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from rest_framework.pagination import PageNumberPagination
 from channels.layers import get_channel_layer
+from datetime import timedelta
+from django.utils import timezone
 
 from .models import Call, Conversation, Message, UserStatus
 from .serializers import CallSerializer, ConversationSerializer, FileHistorySerializer, MessageSerializer, UserSerializer, UserStatusSerializer
@@ -52,8 +59,11 @@ class MessageListView(generics.ListAPIView):
             id=self.kwargs["conversation_id"],
             participants=self.request.user
         )
-        return Message.objects.filter(conversation=conversation)\
-            .select_related("sender", "receiver")
+        
+        return Message.objects.filter(
+            conversation=conversation,
+           
+        ).select_related("sender", "receiver")
 
     def get_serializer_context(self):
         return {"request": self.request}
@@ -101,7 +111,41 @@ class CreateOrGetConversation(APIView):
 
         serializer = ConversationSerializer(conversation, context={"request": request})
         return Response(serializer.data, status=200)
+    
+class DeleteMessageView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def post(self, request, message_id):
+        msg = get_object_or_404(Message, id=message_id)
+
+        #  sécurité
+        if msg.sender != request.user:
+            raise PermissionDenied("Tu ne peux pas supprimer ce message")
+
+        for_everyone = request.data.get("for_everyone", False)
+
+        if for_everyone:
+            msg.deleted_for_everyone = True
+            msg.content = ""
+        else:
+            msg.is_deleted = True
+
+        msg.save()
+
+        #  WEBSOCKET BROADCAST
+        channel_layer = get_channel_layer()
+
+        async_to_sync(channel_layer.group_send)(
+            f"conversation_{msg.conversation.id}",
+            {
+                "type": "message_deleted",
+                "message_id": str(msg.id),
+                "conversation_id": str(msg.conversation.id),
+                "for_everyone": for_everyone,
+            }
+        )
+
+        return Response({"success": True})
 #  Combinaison liste / création messages d’une conversation
 class MessageListCreateView(generics.ListCreateAPIView):
     serializer_class = MessageSerializer
@@ -136,7 +180,8 @@ class MessageListCreateView(generics.ListCreateAPIView):
             file_name=file_obj.name if file_obj else None,
             file_size=file_obj.size if file_obj else None,
             is_read=False,      
-            is_delivered=False
+            is_delivered=False,
+            expires_at=timezone.now() + timedelta(days=3)
         )
 
         # Broadcast WebSocket immédiatement après le save
@@ -233,8 +278,11 @@ class ConversationFileHistoryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, conversation_id):
+        now = timezone.now()
+
         files = Message.objects.filter(
-            conversation_id=conversation_id
+            conversation_id=conversation_id,
+            expires_at__gt=now   
         ).exclude(
             file__isnull=True,
             image__isnull=True

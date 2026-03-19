@@ -4,9 +4,9 @@ from communication.views import (
     ConversationFileHistoryAPIView,
     ConversationListView,
     CreateOrGetConversation,
+    DeleteMessageView,
     MessageListView,
     MessageListCreateView,
-    #MessageCreateView,
     MarkMessageReadView,
     UserListView,
     UserSearchView,
@@ -53,5 +53,13 @@ urlpatterns = [
     ),
    # Recherche d’utilisateurs
    path("users/search/", UserSearchView.as_view(), name="user-search"),
+   
+   # suppression d'un message
+  path(
+    "messages/<uuid:message_id>/delete/",
+    DeleteMessageView.as_view(),
+    name="message-delete"
+), 
+   
 ]
 
