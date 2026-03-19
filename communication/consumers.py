@@ -331,6 +331,14 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
                     }
                 }
             )
+    
+    async def message_deleted(self, event):
+        await self.send_json({
+            "type": "message_deleted",
+            "message_id": event["message_id"],
+            "conversation_id": event["conversation_id"],
+            "for_everyone": event["for_everyone"],
+        })        
 
     # ─── DATABASE METHODS ──────────────────────────────────
     @database_sync_to_async

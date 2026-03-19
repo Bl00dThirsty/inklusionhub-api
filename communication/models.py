@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+from datetime import timedelta
 import uuid
 
 CALL_TYPE_CHOICES = (
@@ -84,6 +85,7 @@ class Message(models.Model):
     is_read = models.BooleanField(default=False)  
     is_deleted = models.BooleanField(default=False)
     deleted_for_everyone = models.BooleanField(default=False)
+    expires_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
         ordering = ['timestamp']

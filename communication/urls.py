@@ -1,13 +1,12 @@
-from django.urls import path
+from django.urls import path,include
 from communication.views import (
     ConversationFileHistoryAPIView,
     ConversationListView,
     CreateOrGetConversation,
+    DeleteMessageView,
     MessageListView,
     MessageListCreateView,
-    #MessageCreateView,
     MarkMessageReadView,
-    MessageViewSet,
     UserListView,
     UserSearchView,
     UserStatusList,
@@ -54,15 +53,11 @@ urlpatterns = [
    # Recherche d’utilisateurs
    path("users/search/", UserSearchView.as_view(), name="user-search"),
    
-   # MessageViewSet (suppression WhatsApp)
-    path(
-        "messages/<uuid:pk>/",
-        MessageViewSet.as_view({
-            "get": "retrieve",
-            "put": "update",
-            "patch": "partial_update",
-            "delete": "destroy",
-        }),
-        name="message-detail"
-    ),
+   # suppression d'un message
+  path(
+    "messages/<uuid:message_id>/delete/",
+    DeleteMessageView.as_view(),
+    name="message-delete"
+), 
+   
 ]
