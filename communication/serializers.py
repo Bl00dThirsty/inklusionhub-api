@@ -17,7 +17,6 @@ class UserSerializer(serializers.ModelSerializer):
             'email', 
             'name', 
             'forename',
-            'full_name',
             'role',
             'role_display',
             'avatar',
@@ -38,6 +37,7 @@ class UserSerializer(serializers.ModelSerializer):
 class VoiceMessageSerializer(serializers.ModelSerializer):
     audio = serializers.SerializerMethodField()
 
+
     class Meta:
         model = VoiceMessage
         fields = ["id", "audio", "duration"]
@@ -49,6 +49,7 @@ class VoiceMessageSerializer(serializers.ModelSerializer):
         return None
 # =========================    
 # Serializer pour les messages
+
 class MessageSerializer(serializers.ModelSerializer):
     sender = UserSerializer(read_only=True)
     receiver = UserSerializer(read_only=True)
@@ -96,17 +97,26 @@ class ConversationSerializer(serializers.ModelSerializer):
     participants = UserSerializer(many=True, read_only=True)
     last_message = serializers.SerializerMethodField()
     unread_count = serializers.SerializerMethodField()
+    other_participant = serializers.SerializerMethodField()
     
     class Meta:
         model = Conversation
         fields = [
-            'id', 'participants', 'is_group', 'name',
-            'created_at', 'updated_at', 'last_message', 'unread_count'
+            'id', 
+            'participants', 
+            'is_group', 
+            'name',
+            'created_at', 
+            'updated_at', 
+            'last_message', 
+            'unread_count',
+            'other_participant'
         ]
     
     def get_last_message(self, obj):
         last_msg = obj.messages.last()
         if last_msg:
+            # CORRECTION : Utilise get_full_name() au lieu de username
             return {
                 'content': last_msg.content,
                 'sender': last_msg.sender.get_full_name(),
@@ -119,7 +129,6 @@ class ConversationSerializer(serializers.ModelSerializer):
     def get_unread_count(self, obj):
         user = self.context.get('request').user
         return obj.messages.filter(is_read=False).exclude(sender=user).count()
-
     
 # =========================
 # CALL (AUDIO / VIDEO)

@@ -37,9 +37,17 @@ DEBUG = True
 ALLOWED_HOSTS = [
     #'localhost:3000',
     'localhost',
+
     #'localhost:8000',
     '127.0.0.1'
+
 ]
+
+# Ajouter après les autres configurations
+RABBITMQ_URL = os.environ.get('RABBITMQ_URL', default='amqp://admin:StrongPassword123@localhost:5672/')
+RABBITMQ_EXCHANGE = os.environ.get('RABBITMQ_EXCHANGE', default='inklusionhub_events')
+SERVICE_NAME = 'auth_service'
+
 
 
 # Application definition
@@ -211,8 +219,25 @@ USE_I18N = True
 USE_TZ = True
 
 # # Configuration MEDIA (pour les fichiers uploadés par les utilisateurs)
-# MEDIA_URL = '/media/'  # URL pour accéder aux fichiers média
-# MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Dossier où sont stockés les fichiers
+# Pagination pour l'API
+# REST_FRAMEWORK = {
+#     'DEFAULT_AUTHENTICATION_CLASSES': [
+#         'rest_framework_simplejwt.authentication.JWTAuthentication',
+#     ],
+#     # 'DEFAULT_PERMISSION_CLASSES': [
+#     #     'rest_framework.permissions.IsAuthenticated',
+#     # ],
+#     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+#     'PAGE_SIZE': 20,
+# }
+
+# Configuration des médias
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Taille maximale de l'upload (10MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
