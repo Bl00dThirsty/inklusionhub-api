@@ -22,20 +22,65 @@ from events.publisher import (
     publish_user_deleted, publish_user_role_changed,
     publish_user_secondary_roles_updated,  auth_publisher
 )
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+import logging
 
-# class RegisterView(generics.CreateAPIView):
-#     """
-#     Écran 1 - Inscription rapide
-#     Crée un user minimal avec rôle par défaut (malentendant)
-#     """
-#     serializer_class = RegisterSerializer
-#     permission_classes = [permissions.AllowAny]
+logger = logging.getLogger(__name__)
+
+
+class VerifyTokenView(APIView):
+    """
+    Endpoint pour vérifier la validité d'un token JWT
+    Retourne les informations de l'utilisateur si le token est valide
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
     
-#     def perform_create(self, serializer):
-#         user = serializer.save()
-#         # Vous pouvez ajouter ici l'envoi d'email de confirmation
-#         return user
-# authentication/views.py
+    def post(self, request):
+        """
+        Vérifie le token et retourne les infos utilisateur
+        """
+        try:
+            user = request.user
+            logger.info(f"Token vérifié avec succès pour l'utilisateur {user.id}")
+            
+            # Récupérer les infos de l'utilisateur
+            user_data = {
+                'user_id': str(user.id),
+                'email': user.email,
+                'name': user.name,
+                'forename': user.forename,
+                'role': user.role,
+                'is_staff': user.is_staff,
+                'is_superuser': user.is_superuser,
+                'secondary_roles': user.secondary_roles,
+                'onboarding_completed': user.onboarding_completed,
+                'onboarding_step': user.onboarding_step,
+                'phone': user.phone,
+                'avatar': user.avatar.url if user.avatar else None,
+            }
+            
+            return Response(user_data, status=status.HTTP_200_OK)
+            
+        except InvalidToken as e:
+            logger.warning(f"Token invalide: {str(e)}")
+            return Response(
+                {'error': 'Token invalide', 'detail': str(e)},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        except TokenError as e:
+            logger.warning(f"Erreur de token: {str(e)}")
+            return Response(
+                {'error': 'Erreur de token', 'detail': str(e)},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        except Exception as e:
+            logger.error(f"Erreur inattendue: {str(e)}")
+            return Response(
+                {'error': 'Erreur interne', 'detail': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]

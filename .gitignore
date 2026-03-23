@@ -205,6 +205,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-/avatars
-/media
+avatars/
+media/
+chat_files/
+chat_images/
 
