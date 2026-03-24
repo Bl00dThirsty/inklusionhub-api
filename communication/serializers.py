@@ -17,6 +17,7 @@ class UserSerializer(serializers.ModelSerializer):
             'email', 
             'name', 
             'forename',
+            'full_name', 
             'role',
             'role_display',
             'avatar',
@@ -125,7 +126,20 @@ class ConversationSerializer(serializers.ModelSerializer):
             }
         return None
 
-    
+    def get_other_participant(self, obj):
+        request = self.context.get('request')
+        if not request:
+            return None
+
+        user = request.user
+
+        if obj.is_group:
+            return None  # ou liste des autres
+
+        other = obj.participants.exclude(id=user.id).first()
+
+        return UserSerializer(other, context=self.context).data if other else None
+
     def get_unread_count(self, obj):
         user = self.context.get('request').user
         return obj.messages.filter(is_read=False).exclude(sender=user).count()

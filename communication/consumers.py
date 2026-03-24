@@ -350,12 +350,20 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
             return False
         
     @database_sync_to_async
-    def is_user_in_conversation(self, conversation_id):
-        return Conversation.objects.filter(
-            id=conversation_id,
-            participants__id=self.user.id
-        ).exists()
- 
+    def is_user_in_conversation(self, conversation):
+        try:
+            if hasattr(conversation, "id"):
+                conversation_id = conversation.id
+            else:
+                conversation_id = UUID(str(conversation))
+
+            return Conversation.objects.filter(
+                id=conversation_id,
+                participants__id=self.user.id
+            ).exists()
+
+        except Exception:
+            return False
     @database_sync_to_async
     def is_user_online(self, user_id):
         """ Vérifie si un utilisateur est connecté pour le statut livré"""
