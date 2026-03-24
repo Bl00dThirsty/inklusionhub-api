@@ -35,9 +35,8 @@ class Conversation(models.Model):
     
     def __str__(self):
         if self.is_group:
-            return f"Group: {self.name or self.id}"
-        participants = list(self.participants.all()[:2])
-        return f"Chat: {participants[0]} & {participants[1] if len(participants) > 1 else '...'}"
+            return f"Group: {self.name or self.pk}"
+        return f"Conversation {self.pk}"
     
 # Modèle pour les messages
 class Message(models.Model):
@@ -95,7 +94,7 @@ class Message(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.sender} -> {self.receiver or 'Group'}: {self.content[:50]}"
+     return f"Message {self.pk}"
     
     def mark_as_read(self):
         if not self.is_read:
