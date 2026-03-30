@@ -30,7 +30,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-0qm@vk5pbi1%4gmjbrg95ix=@1$593ye!#kpy+k^$e^c5n4tyi'
-
+#django-insecure-0qm@vk5pbi1%4gmjbrg95ix=@1$593ye!#kpy+k^$e^c5n4tyi
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -168,6 +168,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Next.js dev
     "http://127.0.0.1:3000",
     "http://127.0.0.1",
+    "http://localhost:8002",
 ]
 
 CORS_ALLOW_CREDENTIALS = True

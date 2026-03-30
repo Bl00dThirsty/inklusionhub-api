@@ -21,7 +21,8 @@ class UserSerializer(serializers.ModelSerializer):
             'role',
             'role_display',
             'avatar',
-            'online'
+            'online',
+            'full_name'
         ]
      # Affiche le nom complet de l’utilisateur (en se basant sur la méthode get_full_name du modèle User)   
     def get_full_name(self, obj):
@@ -122,7 +123,6 @@ class ConversationSerializer(serializers.ModelSerializer):
     def get_last_message(self, obj):
         last_msg = obj.messages.last()
         if last_msg:
-            # CORRECTION : Utilise get_full_name() au lieu de username
             return {
                 'content': last_msg.content,
                 'sender': last_msg.sender.get_full_name(),

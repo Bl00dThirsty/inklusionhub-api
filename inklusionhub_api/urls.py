@@ -36,7 +36,7 @@ urlpatterns = [
     path('user/update/', UpdateProfileView.as_view(), name='update-profile'),
     path('avatars/<str:filename>', serve_avatar, name='serve_avatar'),
     path('user/update-avatar/', UpdateAvatarView.as_view(), name='update-avatar'),
-
+    path('auth/verify/', VerifyTokenView.as_view(), name='verify-token'),
     path('user/me/secondary-roles/<str:role>/',UpdateUserSecondaryRoleProfileView.as_view(),name='update-secondary-role'),
     
     # Communication app URLs
