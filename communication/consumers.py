@@ -9,7 +9,7 @@ from .models import Conversation, Message, UserStatus, VoiceMessage
 
 User = get_user_model()
 
-
+# Consumer centralisé pour chat : messages, notifications, typing indicator, read receipts, présence online/offline
 class UserConsumer(AsyncJsonWebsocketConsumer):
     """
     Consumer centralisé pour chat :
@@ -19,7 +19,7 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
     - Read receipts
     - Présence online/offline
     """
-
+# Lors de la connexion, on vérifie l'authentification, on ajoute l'utilisateur à son groupe personnel et on notifie les contacts
     async def connect(self):
         self.user = self.scope["user"]
 
@@ -50,7 +50,7 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
         })
         print("WS USER:", self.scope["user"])
 
-
+# Lors de la déconnexion, on met à jour le statut de présence et on notifie les contacts
     async def disconnect(self, close_code):
         print(" WS DISCONNECT:", close_code)
         if not hasattr(self, "user") or self.user.is_anonymous:
@@ -63,7 +63,7 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
             f"user_{self.user.id}", self.channel_name
     )
 
-
+#  Recevoir un message du WebSocket, le traiter et éventuellement envoyer une réponse ou une notification à d'autres utilisateurs
     async def receive_json(self, content):
         event_type = content.get("type")
 
@@ -261,7 +261,8 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
             f"user_{message.sender.id}",
             {"type": "ws_send", "payload": payload}
         )
-
+        
+#  Laisser la possibilité de rejoindre une conversation (ex: pour recevoir les messages d’un groupe)
     async def handle_join_conversation(self, data):
         conv_id = data.get("conversation_id")
         group_name = f"conversation_{conv_id}"
@@ -275,7 +276,7 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
         
         self._joined_conversations.add(conv_id)
         await self.channel_layer.group_add(group_name, self.channel_name)
-
+# Récupérer les derniers messages de la conversation et les envoyer au client pour l'historique
         last_messages = await self.get_last_messages(conv_id, limit=60)
         await self.send_json({
             "type": "conversation_history",
@@ -298,7 +299,7 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
             # "unread_count": await self.get_unread_count(conv_id)  # si tu implémentes
         })  
 
-
+#  Laisser la possibilité de quitter une conversation (ex: pour ne plus recevoir les messages d’un groupe)
     async def handle_leave_conversation(self, data):
         conv_id = data.get("conversation_id")
 
@@ -331,7 +332,7 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
                     }
                 }
             )
-    
+    # ─── SUPPRESSION DE MESSAGE ─────────────────────────────
     async def message_deleted(self, event):
         await self.send_json({
             "type": "message_deleted",
@@ -341,6 +342,7 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
         })        
 
     # ─── DATABASE METHODS ──────────────────────────────────
+    # Méthodes d’accès à la base de données, utilisées dans les handlers ci-dessus. Elles sont décorées avec @database_sync_to_async pour être appelées de manière asynchrone.
     @database_sync_to_async
     def is_participant(self, conversation_id):
         try:
@@ -348,7 +350,7 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
             return conv.participants.filter(id=self.user.id).exists()
         except Conversation.DoesNotExist:
             return False
-        
+    #  Méthode plus robuste pour vérifier la participation à une conversation, en acceptant soit un ID, soit une instance de Conversation    
     @database_sync_to_async
     def is_user_in_conversation(self, conversation):
         try:
@@ -365,6 +367,7 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
         except Exception:
             return False
     @database_sync_to_async
+    # Vérifie si un utilisateur est en ligne (pour le statut livré)
     def is_user_online(self, user_id):
         """ Vérifie si un utilisateur est connecté pour le statut livré"""
         try:
@@ -372,7 +375,7 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
             return status.online and status.connections > 0
         except UserStatus.DoesNotExist:
             return False
- 
+ # Marque un message comme livré (is_delivered=True) après l’avoir envoyé à un destinataire en ligne
     @database_sync_to_async
     def mark_as_delivered(self, message_id):
         """ Marque le message comme livré (double coche)"""
@@ -381,7 +384,7 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
             return True
         except Exception:
             return False
- 
+ # Récupère les messages reçus mais non livrés pendant que l'utilisateur était déconnecté, et les marque comme livrés
     @database_sync_to_async
     def get_undelivered_messages(self):
         """
@@ -423,6 +426,8 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
         except Exception as e:
             print(f"[WS] get_undelivered_messages error: {e}")
             return []
+        
+       # Récupère les messages d'une conversation (pour l'historique) avec pagination 
     @database_sync_to_async
     def create_message(self, conversation_id, content):
         conversation = Conversation.objects.get(id=conversation_id)
@@ -433,7 +438,7 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
             receiver=receiver,
             content=content
         )
-
+# Marque un message comme lu et retourne les infos nécessaires pour le read receipt
     @database_sync_to_async
     def mark_message_read(self, message_id):
         try:
@@ -450,12 +455,12 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
         except Message.DoesNotExist:
             return None
 
-
+# Récupère les participants d'une conversation (pour l'envoi de messages et notifications)
     @database_sync_to_async
     def get_conversation_participants(self, conversation_id):
         conversation = Conversation.objects.get(id=conversation_id)
         return list(conversation.participants.all())
-
+# Récupère les messages d'une conversation (pour l'historique) avec pagination
     @database_sync_to_async
     def get_contacts(self):
         return list(
@@ -463,22 +468,22 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
                 .exclude(id=self.user.id)
                 .distinct()
         )
-        
+    # Récupère les messages d'une conversation (pour l'historique) avec pagination    
     @database_sync_to_async
     def get_conversation_id(self, message):
         return message.conversation.id
-    
+    # Récupère les messages d'une conversation (pour l'historique) avec pagination
     @database_sync_to_async
     def get_conversation(self, conversation_id):
         return Conversation.objects.get(id=conversation_id)
-
+# Récupère les messages d'une conversation (pour l'historique) avec pagination
     @database_sync_to_async
     def increment_presence(self):
         status, _ = UserStatus.objects.get_or_create(user=self.user)
         status.connections += 1
         status.online = True
         status.save()
-
+# Décrémente la présence de l'utilisateur et met à jour le statut en conséquence
     @database_sync_to_async
     def decrement_presence(self):
         status = UserStatus.objects.get(user=self.user)
@@ -488,7 +493,7 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
             status.last_seen = timezone.now()
         status.save()
     
-    
+    # Crée un message vocal lié à une conversation
     @database_sync_to_async
     def create_voice_message(self, conversation_id, voice_file, duration):
         conversation = Conversation.objects.get(id=conversation_id)
@@ -504,7 +509,7 @@ class UserConsumer(AsyncJsonWebsocketConsumer):
             duration=duration or 0
         )
         return message
-
+# Récupère les messages d'une conversation (pour l'historique) avec pagination
     @database_sync_to_async
     def get_last_messages(self, conversation_id: str, limit: int = 50):
         from .models import Message

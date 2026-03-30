@@ -13,7 +13,8 @@ def get_user_from_db(user_id):
         return User.objects.get(id=user_id)
     except Exception:
         return AnonymousUser()
-
+# Middleware d’authentification pour les WebSockets, utilisant les tokens JWT passés en query string lors de la connexion. Il vérifie le token, récupère l’utilisateur 
+# associé et l’attache au scope de la connexion WebSocket pour que les consumers puissent l’utiliser.
 class WebSocketAuthMiddleware:
     def __init__(self, inner): # inner au lieu de app est la convention Channels
         self.inner = inner

@@ -1,6 +1,7 @@
 
 from django.urls import path
 from communication.views import (
+    CommunicationStatsView,
     ConversationFileHistoryAPIView,
     ConversationListView,
     CreateOrGetConversation,
@@ -60,6 +61,8 @@ urlpatterns = [
     DeleteMessageView.as_view(),
     name="message-delete"
 ), 
+  # Statistiques de communication pour l’utilisateur connecté
+  path("stats/", CommunicationStatsView.as_view(), name="communication-stats"),
    
 ]
 
