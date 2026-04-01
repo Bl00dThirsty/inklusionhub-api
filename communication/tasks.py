@@ -4,6 +4,7 @@ from .models import Message
 # Si tu n'as pas encore installé fcm-django, commente les lignes FCM
 # from fcm_django.models import FCMDevice 
 
+# Tâche asynchrone pour envoyer des notifications push lors de la création d’un message
 @shared_task
 def async_send_push_notifications(message_id):
     try:

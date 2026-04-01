@@ -1,6 +1,6 @@
 
 from rest_framework import permissions
-
+# Permissions personnalisées pour les conversations et les messages, vérifiant que l'utilisateur est bien participant de la conversation ou expéditeur/destinataire du message avant d'autoriser l'accès.
 class IsConversationParticipant(permissions.BasePermission):
     """
     Permission personnalisée pour vérifier si l'utilisateur est un participant de la conversation
@@ -15,7 +15,7 @@ class IsConversationParticipant(permissions.BasePermission):
             return request.user in obj.conversation.participants.all()
         
         return False
-
+# Permission pour les messages - seul l'expéditeur ou le destinataire peut accéder
 class IsMessageSenderOrReceiver(permissions.BasePermission):
     """
     Permission pour les messages - seul l'expéditeur ou le destinataire peut accéder

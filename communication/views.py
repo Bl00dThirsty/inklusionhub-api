@@ -111,7 +111,7 @@ class CreateOrGetConversation(APIView):
 
         serializer = ConversationSerializer(conversation, context={"request": request})
         return Response(serializer.data, status=200)
-    
+ #  Supprimer un message (soft delete)   
 class DeleteMessageView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -134,7 +134,7 @@ class DeleteMessageView(APIView):
 
         #  WEBSOCKET BROADCAST
         channel_layer = get_channel_layer()
-
+# On notifie tous les participants de la conversation (y compris le sender) pour que le message soit supprimé de leur interface
         async_to_sync(channel_layer.group_send)(
             f"conversation_{msg.conversation.id}",
             {
@@ -150,7 +150,7 @@ class DeleteMessageView(APIView):
 class MessageListCreateView(generics.ListCreateAPIView):
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticated]
-
+#  GET : liste des messages
     def get_queryset(self):
         conversation_id = self.kwargs.get("conversation_id")
         conversation = get_object_or_404(
@@ -159,7 +159,7 @@ class MessageListCreateView(generics.ListCreateAPIView):
             participants=self.request.user
         )
         return Message.objects.filter(conversation=conversation).order_by("timestamp")
-
+#  POST : création d’un message
     def perform_create(self, serializer):
         conversation_id = self.kwargs.get("conversation_id")
         conversation = get_object_or_404(
@@ -272,8 +272,9 @@ class UserStatusList(APIView):
             many=True,
             context={"request": request}
         )
-        return Response(serializer.data)        
-
+        return Response(serializer.data) 
+           
+# Historique des fichiers partagés dans une conversation (non expirés)
 class ConversationFileHistoryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -290,7 +291,8 @@ class ConversationFileHistoryAPIView(APIView):
 
         serializer = FileHistorySerializer(files, many=True)
         return Response(serializer.data)
- 
+    
+ # Serializer pour les détails d’une conversation (participants, dernier message, etc.)
 class UserSearchView(generics.ListAPIView):
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
@@ -301,4 +303,42 @@ class UserSearchView(generics.ListAPIView):
         return User.objects.filter(
     name__icontains=q
 ).exclude(id=self.request.user.id)
+        
+        
+        
+class CommunicationStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+#  Statistiques de communication pour l’utilisateur connecté
+    def get(self, request):
+        user = request.user
+
+        #  Messages non lus
+        unread_messages = Message.objects.filter(
+            conversation__participants=user,
+            is_read=False
+        ).exclude(sender=user).count()
+
+        #  Conversations récentes (7 derniers jours)
+        recent_conversations = Conversation.objects.filter(
+            participants=user,
+            updated_at__gte=timezone.now() - timedelta(days=7)
+        ).count()
+
+        #  Contacts (participants uniques)
+        contacts = User.objects.filter(
+        conversations__participants=user
+    ).exclude(id=user.id).distinct().count()
+
+        #  Groupes
+        groups = Conversation.objects.filter(
+            participants=user,
+            is_group=True
+        ).count()
+
+        return Response({
+            "unreadMessages": unread_messages,
+            "recentConversations": recent_conversations,
+            "activeUsers": contacts,
+            "groups": groups
+        })        
 
